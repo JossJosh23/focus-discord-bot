@@ -4,11 +4,11 @@ const crypto = require("crypto");
 const express = require("express");
 const session = require("express-session");
 const path = require("path");
-const { getGuildStats, recordEvent, getGuildSettings, saveGuildSettings, getGuildActivity } = require("./database");
+const { getGuildStats, recordEvent, getGuildSettings, saveGuildSettings, getGuildActivity, recordBotHeartbeat, getBotStatus } = require("./database");
 
 const app = express();
 const port = Number(process.env.PORT) || 3000;
-const publicDir = path.join(__dirname, "public");
+const publicDir = path.join(__dirname, "..", "public");
 
 app.set("trust proxy", 1);
 
@@ -40,8 +40,8 @@ app.use(session({
 }));
 
 app.use("/public", express.static(publicDir));
-app.use("/dashboard", express.static(path.join(__dirname, "dashboard"), { index: "index.html" }));
-app.get("/", (_req, res) => res.sendFile(path.join(__dirname, "index.html")));
+app.use("/dashboard", express.static(path.join(publicDir, "dashboard"), { index: "index.html" }));
+app.get("/", (_req, res) => res.sendFile(path.join(publicDir, "landing", "index.html")));
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true });
@@ -211,13 +211,18 @@ app.get("/api/guilds/:guildId/activity", requireManagedGuild, (req, res) => {
 });
 
 app.get("/api/bot/status", (_req, res) => {
-  res.json({ online: true, uptime: process.uptime(), lastSync: new Date().toISOString() });
+  res.json(getBotStatus());
+});
+
+// Este endpoint es para el proceso del bot, no para el navegador. Solo expone
+// la configuracion que necesita para dar la bienvenida a un miembro.
+app.get("/api/bot/guilds/:guildId/welcome", requireBotEventToken, (req, res) => {
+  const { welcome } = getGuildSettings(req.params.guildId);
+  res.json({ welcome });
 });
 
 app.post("/api/events", (req, res) => {
-  if (!process.env.EVENT_INGEST_TOKEN || req.get("x-event-token") !== process.env.EVENT_INGEST_TOKEN) {
-    return res.status(401).json({ error: "Token de eventos no valido" });
-  }
+  if (!isValidBotEventToken(req)) return res.status(401).json({ error: "Token de eventos no valido" });
 
   try {
     const result = recordEvent(req.body);
@@ -226,6 +231,22 @@ app.post("/api/events", (req, res) => {
     res.status(400).json({ error: error.message });
   }
 });
+
+app.post("/api/bot/heartbeat", requireBotEventToken, (req, res) => {
+  const { botId, guildCount, uptimeSeconds } = req.body || {};
+  recordBotHeartbeat({ botId, guildCount, uptimeSeconds });
+  res.status(204).end();
+});
+
+function isValidBotEventToken(req) {
+  return Boolean(process.env.EVENT_INGEST_TOKEN)
+    && req.get("x-event-token") === process.env.EVENT_INGEST_TOKEN;
+}
+
+function requireBotEventToken(req, res, next) {
+  if (!isValidBotEventToken(req)) return res.status(401).json({ error: "Token del bot no valido" });
+  next();
+}
 
 async function fetchDiscordGuild(guildId) {
   if (!process.env.DISCORD_BOT_TOKEN) return null;

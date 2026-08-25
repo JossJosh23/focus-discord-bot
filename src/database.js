@@ -17,6 +17,12 @@ database.exec(`
     settings TEXT NOT NULL DEFAULT '{}',
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
+  CREATE TABLE IF NOT EXISTS bot_heartbeats (
+    bot_id TEXT PRIMARY KEY,
+    guild_count INTEGER NOT NULL DEFAULT 0,
+    uptime_seconds INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
 `);
 
 const insertEvent = database.prepare(`
@@ -139,4 +145,31 @@ function getGuildActivity(guildId) {
   `).all(guildId);
 }
 
-module.exports = { recordEvent, getGuildStats, getGuildSettings, saveGuildSettings, getGuildActivity };
+function recordBotHeartbeat({ botId = "soniabot", guildCount = 0, uptimeSeconds = 0 }) {
+  database.prepare(`
+    INSERT INTO bot_heartbeats (bot_id, guild_count, uptime_seconds, updated_at)
+    VALUES (?, ?, ?, datetime('now'))
+    ON CONFLICT(bot_id) DO UPDATE SET
+      guild_count = excluded.guild_count,
+      uptime_seconds = excluded.uptime_seconds,
+      updated_at = datetime('now')
+  `).run(String(botId), Number(guildCount) || 0, Number(uptimeSeconds) || 0);
+}
+
+function getBotStatus(botId = "soniabot") {
+  const heartbeat = database.prepare(`
+    SELECT guild_count, uptime_seconds, updated_at,
+      CAST((julianday('now') - julianday(updated_at)) * 86400 AS INTEGER) AS seconds_since_heartbeat
+    FROM bot_heartbeats WHERE bot_id = ?
+  `).get(botId);
+
+  if (!heartbeat) return { online: false, uptime: 0, lastSync: null, guildCount: 0 };
+  return {
+    online: Number(heartbeat.seconds_since_heartbeat || 0) <= 90,
+    uptime: Number(heartbeat.uptime_seconds || 0),
+    lastSync: heartbeat.updated_at,
+    guildCount: Number(heartbeat.guild_count || 0)
+  };
+}
+
+module.exports = { recordEvent, getGuildStats, getGuildSettings, saveGuildSettings, getGuildActivity, recordBotHeartbeat, getBotStatus };
