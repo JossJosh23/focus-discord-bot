@@ -39,9 +39,10 @@ function recordEvent({ guildId, eventType, metadata = null, createdAt = null }) 
 }
 
 function getGuildStats(guildId) {
+  // CORRECCIÓN: SUM() con CASE WHEN para 'message' en lugar de COUNT(*)
   const stats = database.prepare(`
     SELECT
-      COUNT(*) AS messages,
+      SUM(CASE WHEN event_type = 'message' THEN 1 ELSE 0 END) AS messages,
       SUM(CASE WHEN event_type = 'moderation' THEN 1 ELSE 0 END) AS moderation_actions,
       SUM(CASE WHEN event_type = 'warn' THEN 1 ELSE 0 END) AS warns,
       SUM(CASE WHEN event_type = 'member_join' THEN 1 ELSE 0 END) AS total_joins,
