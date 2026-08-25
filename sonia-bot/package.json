@@ -1,0 +1,22 @@
+{
+  "name": "sonia-bot",
+  "private": true,
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@discordjs/rest": "^2.6.3",
+    "axios": "^1.19.0",
+    "discord-api-types": "^0.38.53",
+    "discord.js": "^14.27.0",
+    "dotenv": "^17.4.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}
