@@ -91,7 +91,7 @@ app.get("/auth/callback", async (req, res) => {
         : `https://cdn.discordapp.com/embed/avatars/${Number(BigInt(user.id) % 5n)}.png`
     };
 
-    res.redirect("/dashboard.html");
+    res.redirect("/dashboard/");
   } catch (authError) {
     console.error(authError);
     res.status(502).send("No se pudo completar la autenticacion con Discord.");
