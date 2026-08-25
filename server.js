@@ -107,6 +107,6 @@ app.post("/auth/logout", (req, res) => {
   req.session.destroy(() => res.clearCookie("soniabot.sid").json({ ok: true }));
 });
 
-app.listen(port, () => {
-  console.log(`SoniaBot web disponible en http://localhost:${port}`);
+app.listen(port, "0.0.0.0", () => {
+  console.log(`SoniaBot web disponible en http://0.0.0.0:${port}`);
 });
