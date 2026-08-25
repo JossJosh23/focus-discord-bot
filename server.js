@@ -16,7 +16,16 @@ if (!process.env.CLIENT_ID || !process.env.CLIENT_SECRET || !process.env.REDIREC
   throw new Error("Faltan CLIENT_ID, CLIENT_SECRET, REDIRECT_URI o SESSION_SECRET en .env");
 }
 
-app.use(express.json());
+app.disable("x-powered-by");
+app.use((_, res, next) => {
+  res.set({
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY"
+  });
+  next();
+});
+app.use(express.json({ limit: "32kb" }));
 app.use(session({
   name: "soniabot.sid",
   secret: process.env.SESSION_SECRET,
@@ -153,8 +162,8 @@ app.get("/api/guilds/:guildId/stats", async (req, res) => {
   }
 
   try {
-    const discordGuild = await fetchDiscordGuild(req.params.guildId);
     const historical = getGuildStats(req.params.guildId);
+    const discordGuild = await fetchDiscordGuild(req.params.guildId);
     const createdAt = getDiscordCreationDate(req.params.guildId);
 
     res.json({
@@ -195,9 +204,13 @@ async function fetchDiscordGuild(guildId) {
   const response = await fetch(`https://discord.com/api/v10/guilds/${guildId}?with_counts=true`, {
     headers
   });
+  // El usuario puede administrar un servidor al que el bot aún no fue invitado.
+  // En ese caso seguimos mostrando los datos locales disponibles.
+  if (response.status === 403 || response.status === 404) return null;
   if (!response.ok) throw new Error(`Discord guild API returned ${response.status}`);
   const guild = await response.json();
   const rolesResponse = await fetch(`https://discord.com/api/v10/guilds/${guildId}/roles`, { headers });
+  if (rolesResponse.status === 403 || rolesResponse.status === 404) return guild;
   if (!rolesResponse.ok) throw new Error(`Discord roles API returned ${rolesResponse.status}`);
   guild.roles = await rolesResponse.json();
   return guild;

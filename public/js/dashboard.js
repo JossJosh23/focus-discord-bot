@@ -66,6 +66,7 @@ const statChangeElements = {
   moderationActions: document.querySelector("#moderationChange"),
   warns: document.querySelector("#warnsChange")
 };
+let statsRequestId = 0;
 
 function selectGuild(guild) {
   localStorage.setItem(selectedGuildKey, guild.id);
@@ -121,12 +122,15 @@ function renderGuildStats(data) {
   Object.entries(statChangeElements).forEach(([key, element]) => {
     if (!element) return;
     const change = stats.changes?.[key];
-    element.textContent = change === null || change === undefined ? "Sin histórico" : `${change >= 0 ? "+" : ""}${change}%`;
-    element.className = `metric-change ${change >= 0 ? "positive" : "negative"}`;
+    const hasHistory = Number.isFinite(change);
+    element.textContent = hasHistory ? `${change >= 0 ? "+" : ""}${change}%` : "Sin histórico";
+    element.className = `metric-change ${hasHistory ? (change >= 0 ? "positive" : "negative") : ""}`;
   });
+  setStatsLoading(false);
 }
 
 async function loadGuildStats(guildId) {
+  const requestId = ++statsRequestId;
   setStatsLoading(true);
 
   if (isLocalEnvironment) {
@@ -142,10 +146,19 @@ async function loadGuildStats(guildId) {
       credentials: "same-origin"
     });
     if (!response.ok) throw new Error("No se pudieron cargar las estadisticas");
-    renderGuildStats(await response.json());
+    const data = await response.json();
+    if (requestId === statsRequestId) renderGuildStats(data);
   } catch {
+    if (requestId !== statsRequestId) return;
     [serverMembers, serverRoles, serverAge, bannerMemberCount, statMessages, statNewMembers, statModeration, statWarns]
       .forEach((element) => { if (element) element.textContent = "--"; });
+    Object.values(statChangeElements).forEach((element) => {
+      if (element) {
+        element.textContent = "Sin datos";
+        element.className = "metric-change";
+      }
+    });
+    setStatsLoading(false);
   }
 }
 
@@ -183,7 +196,8 @@ function renderGuilds(guilds) {
 
   if (!guilds.length) {
     const emptyMessage = document.createElement("p");
-    emptyMessage.textContent = "No perteneces a ningun servidor.";
+    emptyMessage.textContent = "No perteneces a ningún servidor que puedas administrar.";
+    dashboardGuildGrid.append(emptyMessage);
     selectedGuildName.textContent = "Sin servidores";
     selectorButton.disabled = true;
     return;
@@ -319,16 +333,6 @@ userMenuButton.addEventListener("click", () => {
 
 mobileMenuButton.addEventListener("click", () => {
   dashboardSidebar.classList.toggle("open");
-});
-
-document.querySelectorAll(".sidebar-link").forEach((link) => {
-  link.addEventListener("click", () => {
-    document.querySelectorAll(".sidebar-link").forEach((item) => item.classList.remove("active"));
-    document.querySelectorAll(".dashboard-view").forEach((view) => view.classList.remove("active"));
-    link.classList.add("active");
-    document.querySelector(`[data-view="${link.dataset.section}"]`).classList.add("active");
-    dashboardSidebar.classList.remove("open");
-  });
 });
 
 document.addEventListener("click", (event) => {

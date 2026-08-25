@@ -37,7 +37,7 @@
 <span aria-hidden="true">⌄</span>
 </button>
 <div class="user-menu" id="userMenu" role="menu" hidden>
-<button id="logoutButton" type="button" role="menuitem">Cerrar Sesion</button>
+<button id="logoutButton" type="button" role="menuitem">Cerrar sesión</button>
 </div>
 </div>
 </div>
@@ -45,27 +45,27 @@
 
 <div class="dashboard-layout">
 <aside class="dashboard-sidebar" id="dashboardSidebar">
-<nav aria-label="Navegacion del dashboard">
-<button class="sidebar-link active" type="button" data-section="overview">▦ <span>Vision General</span></button>
+<nav aria-label="Navegación del dashboard">
+<button class="sidebar-link active" type="button" data-section="overview">▦ <span>Visión general</span></button>
 <button class="sidebar-link" type="button" data-section="welcome">✦ <span>Bienvenidas</span></button>
 <button class="sidebar-link" type="button" data-section="moderation">◆ <span>Moderacion</span></button>
 <p class="sidebar-label">INTEGRACIONES</p>
 <button class="sidebar-link" type="button" data-section="logs">≡ <span>Webhooks / Logs</span></button>
 <button class="sidebar-link" type="button" data-section="api">&lt;/&gt; <span>API</span></button>
 <p class="sidebar-label">CONFIGURACION</p>
-<button class="sidebar-link" type="button" data-section="settings">⚙ <span>Configuracion</span></button>
+<button class="sidebar-link" type="button" data-section="settings">⚙ <span>Configuración</span></button>
 <button class="sidebar-link" type="button" data-section="premium">♛ <span>Premium</span></button>
 <button class="sidebar-link" type="button" data-section="support">? <span>Soporte</span></button>
 </nav>
-<div class="premium-card"><span class="premium-star">✦</span><strong>SoniaBot Premium</strong><p>Desbloquea todas las herramientas.</p><button type="button" data-section="premium">Ver Premium <span>→</span></button></div>
+<div class="premium-card"><span class="premium-star">✦</span><strong>SoniaBot Premium</strong><p>Desbloquea todas las herramientas.</p><button class="sidebar-link" type="button" data-section="premium">Ver Premium <span>→</span></button></div>
 </aside>
 
 <main class="dashboard-main">
 <section class="dashboard-view active" data-view="overview">
-<div class="dashboard-heading"><div><p class="eyebrow">Panel de control</p><h1>¡Bienvenido de vuelta, <span id="welcomeName">Usuario</span>! 👋</h1><p class="dashboard-subtitle">Aquí tienes un resumen de lo que ocurre en tu comunidad.</p></div><div class="date-widget"><span>HOY</span><strong id="currentDate">--</strong><small id="currentTime">--:--</small></div><button class="mobile-menu-button" id="mobileMenuButton" type="button">☰</button></div>
+<div class="dashboard-heading"><div><p class="eyebrow">Panel de control</p><h1>¡Bienvenido de vuelta, <span id="welcomeName">Usuario</span>! 👋</h1><p class="dashboard-subtitle">Aquí tienes un resumen de lo que ocurre en tu comunidad.</p></div><div class="date-widget"><span>HOY</span><strong id="currentDate">--</strong><small id="currentTime">--:--</small></div><button class="mobile-menu-button" id="mobileMenuButton" type="button" aria-label="Abrir menú">☰</button></div>
 <div class="server-banner">
 <div id="bannerGuildIcon" class="banner-guild-icon guild-icon-placeholder">S</div>
-<div><p class="eyebrow">SERVIDOR SELECCIONADO</p><h2 id="bannerGuildName">Seleccionar servidor</h2><p><span id="bannerMemberCount">0</span> miembros activos</p></div><button class="discord-server-button" type="button">Ver en Discord <span>↗</span></button>
+<div><p class="eyebrow">SERVIDOR SELECCIONADO</p><h2 id="bannerGuildName">Seleccionar servidor</h2><p><span id="bannerMemberCount">0</span> miembros</p></div>
 </div>
 <div class="server-stats"><div><strong id="serverMembers">0</strong><span>Miembros</span></div><div><strong id="serverRoles">--</strong><span>Roles</span></div><div><strong id="serverAge">--</strong><span>Antigüedad</span></div></div>
 <div class="quick-stats"><div class="section-title"><div><p class="eyebrow">RENDIMIENTO</p><h2>Estadísticas rápidas</h2></div><span>Datos reales</span></div><div class="quick-stats-grid"><article><span class="metric-icon blue">✉</span><div><strong id="statMessages">--</strong><span>Mensajes</span></div><em id="messagesChange" class="metric-change">--</em></article><article><span class="metric-icon green">♙</span><div><strong id="statNewMembers">--</strong><span>Nuevos miembros</span></div><em id="membersChange" class="metric-change">--</em></article><article><span class="metric-icon purple">◆</span><div><strong id="statModeration">--</strong><span>Acciones mod</span></div><em id="moderationChange" class="metric-change">--</em></article><article><span class="metric-icon orange">!</span><div><strong id="statWarns">--</strong><span>Warns activos</span></div><em id="warnsChange" class="metric-change">--</em></article></div></div>
@@ -81,7 +81,10 @@
 <section class="dashboard-view" data-view="welcome"><div class="dashboard-heading"><div><p class="eyebrow">Configuracion</p><h1>Bienvenidas</h1></div></div><div class="empty-view">Configura los mensajes de bienvenida de tu servidor.</div></section>
 <section class="dashboard-view" data-view="moderation"><div class="dashboard-heading"><div><p class="eyebrow">Seguridad</p><h1>Moderacion</h1></div></div><div class="empty-view">Administra las reglas de moderacion automatica.</div></section>
 <section class="dashboard-view" data-view="logs"><div class="dashboard-heading"><div><p class="eyebrow">Actividad</p><h1>Webhooks / Logs</h1></div></div><div class="empty-view">Consulta los eventos recientes de tu servidor.</div></section>
+<section class="dashboard-view" data-view="api"><div class="dashboard-heading"><div><p class="eyebrow">Integración</p><h1>API</h1></div></div><div class="empty-view">La API de configuración estará disponible próximamente.</div></section>
 <section class="dashboard-view" data-view="settings"><div class="dashboard-heading"><div><p class="eyebrow">Preferencias</p><h1>Configuracion</h1></div></div><div class="empty-view">Ajusta las preferencias generales de Sonia Bot.</div></section>
+<section class="dashboard-view" data-view="premium"><div class="dashboard-heading"><div><p class="eyebrow">SoniaBot</p><h1>Premium</h1></div></div><div class="empty-view">Los planes Premium estarán disponibles próximamente.</div></section>
+<section class="dashboard-view" data-view="support"><div class="dashboard-heading"><div><p class="eyebrow">Ayuda</p><h1>Soporte</h1></div></div><div class="empty-view">Únete al servidor de soporte para recibir ayuda.</div></section>
 </main>
 </div>
 <script src="../public/js/dashboard.js"></script>
