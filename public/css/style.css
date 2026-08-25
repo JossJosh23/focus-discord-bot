@@ -853,8 +853,11 @@ animation: blink 1.5s infinite;
 @media (max-width: 760px){
 
 .dashboard-navbar{
+min-height:112px;
 padding:10px 16px;
 gap:12px;
+flex-wrap:wrap;
+align-content:center;
 }
 
 .dashboard-brand span,
@@ -864,17 +867,17 @@ display:none;
 
 .dashboard-actions{
 gap:10px;
-flex:1;
-justify-content:flex-end;
+width:100%;
+justify-content:space-between;
 }
 
 .server-selector{
 min-width:0;
-width:min(230px, 65vw);
+width:calc(100% - 50px);
 }
 
 .dashboard-page{
-padding:100px 16px 24px;
+padding:140px 16px 24px;
 }
 
 header{
