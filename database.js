@@ -12,6 +12,11 @@ database.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_guild_events_guild_date
     ON guild_events(guild_id, created_at);
+  CREATE TABLE IF NOT EXISTS guild_settings (
+    guild_id TEXT PRIMARY KEY,
+    settings TEXT NOT NULL DEFAULT '{}',
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
 `);
 
 const insertEvent = database.prepare(`
@@ -91,4 +96,47 @@ function getGuildStats(guildId) {
   };
 }
 
-module.exports = { recordEvent, getGuildStats };
+function getGuildSettings(guildId) {
+  const row = database.prepare("SELECT settings FROM guild_settings WHERE guild_id = ?").get(guildId);
+  const defaults = {
+    welcome: { enabled: true, channel: "general", message: "¡Bienvenido {user} a {server}!" },
+    moderation: { enabled: true, antiSpam: true, filterLinks: false, warnLimit: 3 },
+    roles: { enabled: false, defaultRole: "Miembro" },
+    automation: { logs: false, joinMessage: true },
+    profile: { description: "", invite: "" }
+  };
+  if (!row) return defaults;
+  try {
+    const saved = JSON.parse(row.settings);
+    return {
+      ...defaults,
+      ...saved,
+      welcome: { ...defaults.welcome, ...saved.welcome },
+      moderation: { ...defaults.moderation, ...saved.moderation },
+      roles: { ...defaults.roles, ...saved.roles },
+      automation: { ...defaults.automation, ...saved.automation },
+      profile: { ...defaults.profile, ...saved.profile }
+    };
+  } catch { return defaults; }
+}
+
+function saveGuildSettings(guildId, settings) {
+  database.prepare(`
+    INSERT INTO guild_settings (guild_id, settings, updated_at) VALUES (?, ?, datetime('now'))
+    ON CONFLICT(guild_id) DO UPDATE SET settings = excluded.settings, updated_at = datetime('now')
+  `).run(guildId, JSON.stringify(settings));
+  return getGuildSettings(guildId);
+}
+
+function getGuildActivity(guildId) {
+  return database.prepare(`
+    SELECT substr(created_at, 1, 10) AS date,
+      SUM(CASE WHEN event_type = 'message' THEN 1 ELSE 0 END) AS messages,
+      SUM(CASE WHEN event_type = 'member_join' THEN 1 ELSE 0 END) AS joins,
+      SUM(CASE WHEN event_type IN ('moderation', 'warn') THEN 1 ELSE 0 END) AS moderation
+    FROM guild_events WHERE guild_id = ? AND created_at >= datetime('now', '-7 days')
+    GROUP BY substr(created_at, 1, 10) ORDER BY date ASC
+  `).all(guildId);
+}
+
+module.exports = { recordEvent, getGuildStats, getGuildSettings, saveGuildSettings, getGuildActivity };

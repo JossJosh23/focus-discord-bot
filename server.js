@@ -4,7 +4,7 @@ const crypto = require("crypto");
 const express = require("express");
 const session = require("express-session");
 const path = require("path");
-const { getGuildStats, recordEvent } = require("./database");
+const { getGuildStats, recordEvent, getGuildSettings, saveGuildSettings, getGuildActivity } = require("./database");
 
 const app = express();
 const port = Number(process.env.PORT) || 3000;
@@ -183,6 +183,35 @@ app.get("/api/guilds/:guildId/stats", async (req, res) => {
     console.error(error);
     res.status(502).json({ error: "No se pudieron obtener las estadisticas del servidor" });
   }
+});
+
+function requireManagedGuild(req, res, next) {
+  if (!req.session.user) return res.status(401).json({ authenticated: false });
+  const guild = (req.session.user.guilds || []).find((item) => item.id === req.params.guildId);
+  if (!guild || (!guild.owner && !hasAdministratorPermission(guild.permissions))) {
+    return res.status(403).json({ error: "No tienes permisos de administrador en este servidor" });
+  }
+  req.guild = guild;
+  next();
+}
+
+app.get("/api/guilds/:guildId/settings", requireManagedGuild, (req, res) => {
+  res.json({ settings: getGuildSettings(req.params.guildId) });
+});
+
+app.put("/api/guilds/:guildId/settings", requireManagedGuild, (req, res) => {
+  if (!req.body || typeof req.body !== "object" || Array.isArray(req.body)) {
+    return res.status(400).json({ error: "Configuración no válida" });
+  }
+  res.json({ settings: saveGuildSettings(req.params.guildId, req.body) });
+});
+
+app.get("/api/guilds/:guildId/activity", requireManagedGuild, (req, res) => {
+  res.json({ activity: getGuildActivity(req.params.guildId) });
+});
+
+app.get("/api/bot/status", (_req, res) => {
+  res.json({ online: true, uptime: process.uptime(), lastSync: new Date().toISOString() });
 });
 
 app.post("/api/events", (req, res) => {

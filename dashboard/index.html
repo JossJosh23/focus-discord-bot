@@ -20,8 +20,13 @@
 
 <div class="dashboard-status">
 <span class="bot-status"><span class="status-dot"></span>Online</span>
-<a href="https://discord.gg/pf8XvQGDSY" target="_blank" rel="noopener noreferrer">Soporte</a>
 </div>
+
+<nav class="dashboard-nav-links" aria-label="Enlaces principales">
+<button type="button" data-nav-section="api">Documentación</button>
+<button type="button" data-nav-section="api">API</button>
+<a href="https://discord.gg/pf8XvQGDSY" target="_blank" rel="noopener noreferrer">Soporte</a>
+</nav>
 
 <div class="dashboard-actions">
 <div class="server-selector" id="serverSelector">
@@ -52,6 +57,8 @@
 <button class="sidebar-link active" type="button" data-section="overview">▦ <span>Visión general</span></button>
 <button class="sidebar-link" type="button" data-section="welcome">✦ <span>Bienvenidas</span></button>
 <button class="sidebar-link" type="button" data-section="moderation">◆ <span>Moderacion</span></button>
+<button class="sidebar-link" type="button" data-section="roles">◉ <span>Roles</span></button>
+<button class="sidebar-link" type="button" data-section="automation">ϟ <span>Automatizaciones</span></button>
 <p class="sidebar-label">INTEGRACIONES</p>
 <button class="sidebar-link" type="button" data-section="logs">≡ <span>Webhooks / Logs</span></button>
 <button class="sidebar-link" type="button" data-section="api">&lt;/&gt; <span>API</span></button>
@@ -83,6 +90,8 @@
 </section>
 <section class="dashboard-view" data-view="welcome"><div class="dashboard-heading"><div><p class="eyebrow">Configuracion</p><h1>Bienvenidas</h1></div></div><div class="empty-view">Configura los mensajes de bienvenida de tu servidor.</div></section>
 <section class="dashboard-view" data-view="moderation"><div class="dashboard-heading"><div><p class="eyebrow">Seguridad</p><h1>Moderacion</h1></div></div><div class="empty-view">Administra las reglas de moderacion automatica.</div></section>
+<section class="dashboard-view" data-view="roles"><div class="dashboard-heading"><div><p class="eyebrow">Comunidad</p><h1>Roles automaticos</h1></div></div><form class="settings-panel" data-settings-form="roles"><label><span>Rol predeterminado</span><input name="defaultRole" placeholder="Miembro"></label><label class="form-switch"><span>Asignar rol al entrar</span><input name="enabled" type="checkbox"></label><button class="primary-button">Guardar roles</button></form></section>
+<section class="dashboard-view" data-view="automation"><div class="dashboard-heading"><div><p class="eyebrow">Flujos</p><h1>Automatizaciones</h1></div></div><form class="settings-panel" data-settings-form="automation"><label class="form-switch"><span>Registrar logs del servidor</span><input name="logs" type="checkbox"></label><label class="form-switch"><span>Mensaje al unirse un miembro</span><input name="joinMessage" type="checkbox"></label><button class="primary-button">Guardar automatizaciones</button></form></section>
 <section class="dashboard-view" data-view="logs"><div class="dashboard-heading"><div><p class="eyebrow">Actividad</p><h1>Webhooks / Logs</h1></div></div><div class="empty-view">Consulta los eventos recientes de tu servidor.</div></section>
 <section class="dashboard-view" data-view="api"><div class="dashboard-heading"><div><p class="eyebrow">Integración</p><h1>API</h1></div></div><div class="empty-view">La API de configuración estará disponible próximamente.</div></section>
 <section class="dashboard-view" data-view="settings"><div class="dashboard-heading"><div><p class="eyebrow">Preferencias</p><h1>Configuracion</h1></div></div><div class="empty-view">Ajusta las preferencias generales de Sonia Bot.</div></section>

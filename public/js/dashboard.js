@@ -67,8 +67,11 @@ const statChangeElements = {
   warns: document.querySelector("#warnsChange")
 };
 let statsRequestId = 0;
+let activeGuildId = null;
+let guildConfiguration = null;
 
 function selectGuild(guild) {
+  activeGuildId = guild.id;
   localStorage.setItem(selectedGuildKey, guild.id);
   selectedGuildName.textContent = guild.name;
   selectedGuildIcon.replaceChildren();
@@ -96,7 +99,98 @@ function selectGuild(guild) {
   guildsMenu.hidden = true;
   selectorButton.setAttribute("aria-expanded", "false");
   loadGuildStats(guild.id);
+  loadGuildConfiguration(guild.id);
 }
+
+function defaultConfiguration() {
+  return {
+    welcome: { enabled: true, channel: "general", message: "Bienvenido {user} a {server}!" },
+    moderation: { enabled: true, antiSpam: true, filterLinks: false, warnLimit: 3 },
+    roles: { enabled: false, defaultRole: "Miembro" },
+    automation: { logs: false, joinMessage: true },
+    profile: { description: "", invite: "" }
+  };
+}
+
+async function loadGuildConfiguration(guildId) {
+  try {
+    if (isLocalEnvironment) {
+      guildConfiguration = JSON.parse(localStorage.getItem(`soniabot.config.${guildId}`) || "null") || defaultConfiguration();
+    } else {
+      const response = await fetch(`/api/guilds/${encodeURIComponent(guildId)}/settings`, { credentials: "same-origin" });
+      if (!response.ok) throw new Error("No se pudo cargar la configuración");
+      guildConfiguration = (await response.json()).settings;
+    }
+    renderManagementViews();
+    loadActivity(guildId);
+  } catch {
+    guildConfiguration = defaultConfiguration();
+    renderManagementViews();
+  }
+}
+
+async function saveGuildConfiguration() {
+  if (!activeGuildId || !guildConfiguration) return;
+  if (isLocalEnvironment) {
+    localStorage.setItem(`soniabot.config.${activeGuildId}`, JSON.stringify(guildConfiguration));
+    showToast("Cambios guardados");
+    return;
+  }
+  const response = await fetch(`/api/guilds/${encodeURIComponent(activeGuildId)}/settings`, {
+    method: "PUT", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(guildConfiguration)
+  });
+  if (!response.ok) throw new Error("No se pudieron guardar los cambios");
+  guildConfiguration = (await response.json()).settings;
+  showToast("Cambios guardados");
+}
+
+function viewContent(view, content) {
+  const target = document.querySelector(`[data-view="${view}"]`);
+  if (target) target.innerHTML = content;
+}
+
+function renderManagementViews() {
+  const c = guildConfiguration || defaultConfiguration();
+  viewContent("welcome", `<div class="dashboard-heading"><div><p class="eyebrow">Comunidad</p><h1>Bienvenidas</h1><p class="dashboard-subtitle">Personaliza el primer mensaje de cada miembro.</p></div></div><form class="settings-panel" data-settings-form="welcome"><label class="form-switch"><span>Activar mensajes de bienvenida</span><input name="enabled" type="checkbox" ${c.welcome.enabled ? "checked" : ""}></label><label><span>Canal</span><input name="channel" value="${escapeHtml(c.welcome.channel)}" placeholder="general"></label><label><span>Mensaje</span><textarea name="message" rows="4">${escapeHtml(c.welcome.message)}</textarea><small>Variables: {user} y {server}</small></label><button class="primary-button">Guardar bienvenida</button></form>`);
+  viewContent("moderation", `<div class="dashboard-heading"><div><p class="eyebrow">Seguridad</p><h1>Moderacion</h1><p class="dashboard-subtitle">Define reglas automaticas para proteger tu comunidad.</p></div></div><form class="settings-panel" data-settings-form="moderation"><label class="form-switch"><span>Moderacion automatica</span><input name="enabled" type="checkbox" ${c.moderation.enabled ? "checked" : ""}></label><label class="form-switch"><span>Detectar spam</span><input name="antiSpam" type="checkbox" ${c.moderation.antiSpam ? "checked" : ""}></label><label class="form-switch"><span>Filtrar enlaces sospechosos</span><input name="filterLinks" type="checkbox" ${c.moderation.filterLinks ? "checked" : ""}></label><label><span>Limite de advertencias</span><input name="warnLimit" type="number" min="1" max="20" value="${c.moderation.warnLimit}"></label><button class="primary-button">Guardar reglas</button></form>`);
+  viewContent("roles", `<div class="dashboard-heading"><div><p class="eyebrow">Comunidad</p><h1>Roles automaticos</h1></div></div><form class="settings-panel" data-settings-form="roles"><label><span>Rol predeterminado</span><input name="defaultRole" value="${escapeHtml(c.roles.defaultRole)}" placeholder="Miembro"></label><label class="form-switch"><span>Asignar rol al entrar</span><input name="enabled" type="checkbox" ${c.roles.enabled ? "checked" : ""}></label><button class="primary-button">Guardar roles</button></form>`);
+  viewContent("automation", `<div class="dashboard-heading"><div><p class="eyebrow">Flujos</p><h1>Automatizaciones</h1></div></div><form class="settings-panel" data-settings-form="automation"><label class="form-switch"><span>Registrar logs del servidor</span><input name="logs" type="checkbox" ${c.automation.logs ? "checked" : ""}></label><label class="form-switch"><span>Mensaje al unirse un miembro</span><input name="joinMessage" type="checkbox" ${c.automation.joinMessage ? "checked" : ""}></label><button class="primary-button">Guardar automatizaciones</button></form>`);
+  viewContent("settings", `<div class="dashboard-heading"><div><p class="eyebrow">Preferencias</p><h1>Perfil del servidor</h1></div></div><form class="settings-panel" data-settings-form="profile"><label><span>Descripcion</span><textarea name="description" rows="3" placeholder="Describe tu comunidad">${escapeHtml(c.profile.description)}</textarea></label><label><span>Invitacion de Discord</span><input name="invite" value="${escapeHtml(c.profile.invite)}" placeholder="https://discord.gg/..." type="url"></label><button class="primary-button">Guardar perfil</button></form>`);
+  viewContent("api", `<div class="dashboard-heading"><div><p class="eyebrow">Documentacion</p><h1>API y eventos</h1><p class="dashboard-subtitle">Conecta tu bot para ver actividad real en este panel.</p></div></div><div class="docs-grid"><article><h3>Registrar evento</h3><code>POST /api/events</code><p>Incluye el encabezado <code>x-event-token</code> y los campos guildId y eventType.</p></article><article><h3>Eventos disponibles</h3><p>message, member_join, member_leave, moderation y warn.</p></article><article><h3>Configuracion</h3><code>PUT /api/guilds/:id/settings</code><p>Disponible para administradores autenticados.</p></article></div>`);
+  viewContent("premium", `<div class="dashboard-heading"><div><p class="eyebrow">SoniaBot</p><h1>Premium</h1><p class="dashboard-subtitle">Planes para comunidades que necesitan mas automatizacion.</p></div></div><div class="docs-grid plans-grid"><article><h3>Gratis</h3><p>Moderacion y bienvenida esenciales.</p><strong>$0 / mes</strong></article><article class="featured-plan"><h3>Premium</h3><p>Logs avanzados, automatizaciones y soporte prioritario.</p><strong>$4.99 / mes</strong></article><article><h3>Comunidades</h3><p>Funciones a medida para servidores grandes.</p><strong>Contactanos</strong></article></div>`);
+  bindSettingsForms();
+}
+
+function bindSettingsForms() {
+  document.querySelectorAll("[data-settings-form]").forEach((form) => {
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const key = form.dataset.settingsForm;
+      const next = {};
+      form.querySelectorAll("input, textarea").forEach((input) => { next[input.name] = input.type === "checkbox" ? input.checked : input.type === "number" ? Number(input.value) : input.value.trim(); });
+      guildConfiguration[key] = { ...guildConfiguration[key], ...next };
+      try { await saveGuildConfiguration(); } catch { showToast("No se pudieron guardar los cambios", true); }
+    });
+  });
+}
+
+async function loadActivity(guildId) {
+  const target = document.querySelector("[data-view=logs]");
+  if (!target) return;
+  let activity = [];
+  try {
+    if (!isLocalEnvironment) {
+      const response = await fetch(`/api/guilds/${encodeURIComponent(guildId)}/activity`, { credentials: "same-origin" });
+      if (response.ok) activity = (await response.json()).activity;
+    }
+    const max = Math.max(1, ...activity.map((day) => Number(day.messages) + Number(day.joins) + Number(day.moderation)));
+    const bars = activity.length ? activity.map((day) => `<div class="activity-bar" title="${escapeHtml(day.date)}"><span style="height:${Math.max(8, ((Number(day.messages) + Number(day.joins) + Number(day.moderation)) / max) * 100)}%"></span><small>${day.date.slice(5)}</small></div>`).join("") : `<p class="empty-state">Aun no hay eventos. Conecta el endpoint de eventos de SoniaBot para llenar este grafico.</p>`;
+    target.innerHTML = `<div class="dashboard-heading"><div><p class="eyebrow">Actividad</p><h1>Webhooks y logs</h1><p class="dashboard-subtitle">Actividad de los ultimos 7 dias.</p></div></div><div class="activity-card"><div class="activity-chart">${bars}</div></div>`;
+  } catch { /* The view stays available even if activity cannot be fetched. */ }
+}
+
+function escapeHtml(value = "") { const element = document.createElement("div"); element.textContent = value; return element.innerHTML; }
+function showToast(message, isError = false) { const toast = document.createElement("div"); toast.className = `dashboard-toast${isError ? " error" : ""}`; toast.textContent = message; document.body.append(toast); setTimeout(() => toast.remove(), 2800); }
 
 function setStatsLoading(isLoading) {
   [serverMembers, serverRoles, serverAge, bannerMemberCount, statMessages, statNewMembers, statModeration, statWarns]
@@ -203,6 +297,19 @@ function renderGuilds(guilds) {
     return;
   }
 
+  const search = document.createElement("input");
+  search.className = "guild-search";
+  search.type = "search";
+  search.placeholder = "Buscar servidor...";
+  search.setAttribute("aria-label", "Buscar servidor");
+  search.addEventListener("input", () => {
+    const term = search.value.toLocaleLowerCase();
+    guildsMenu.querySelectorAll(".guild-option").forEach((option) => {
+      option.hidden = !option.textContent.toLocaleLowerCase().includes(term);
+    });
+  });
+  guildsMenu.append(search);
+
   guilds.forEach((guild) => {
     const option = document.createElement("button");
     option.className = "guild-option";
@@ -280,6 +387,13 @@ function setupNavigation() {
     });
   });
 
+  document.querySelectorAll("[data-nav-section]").forEach((link) => {
+    link.addEventListener("click", () => {
+      const target = document.querySelector(`.sidebar-link[data-section="${link.dataset.navSection}"]`);
+      if (target) target.click();
+    });
+  });
+
   document.querySelectorAll("[data-setting]").forEach((input) => {
     const settings = JSON.parse(localStorage.getItem("soniabot.settings") || "{}");
     if (typeof settings[input.dataset.setting] === "boolean") input.checked = settings[input.dataset.setting];
@@ -289,6 +403,16 @@ function setupNavigation() {
       localStorage.setItem("soniabot.settings", JSON.stringify(current));
     });
   });
+}
+
+async function loadBotStatus() {
+  const status = document.querySelector(".bot-status");
+  if (!status || isLocalEnvironment) return;
+  try {
+    const response = await fetch("/api/bot/status", { credentials: "same-origin" });
+    const data = await response.json();
+    status.lastChild.textContent = data.online ? ` Online · sincronizado ${new Date(data.lastSync).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}` : " Offline";
+  } catch { status.lastChild.textContent = " Estado no disponible"; }
 }
 
 async function loadDashboard() {
@@ -356,5 +480,6 @@ logoutButton.addEventListener("click", async () => {
 });
 
 loadDashboard();
+loadBotStatus();
 updateClock();
 setInterval(updateClock, 60000);
