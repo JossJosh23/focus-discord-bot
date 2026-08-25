@@ -2,8 +2,6 @@ const savedUserKey = "soniabot.user";
 const selectedGuildKey = "soniabot.selectedGuild";
 const defaultAvatar = "https://cdn.discordapp.com/embed/avatars/0.png";
 
-const dashboardContent = document.querySelector("#dashboardContent");
-const guildsList = document.querySelector("#guildsList");
 const logoutButton = document.querySelector("#logoutButton");
 const guildsMenu = document.querySelector("#guildsMenu");
 const selectorButton = document.querySelector("#serverSelectorButton");
@@ -72,29 +70,27 @@ function selectGuild(guild) {
   selectorButton.setAttribute("aria-expanded", "false");
 }
 
-function createGuildIcon(guild) {
+function createGuildIcon(guild, className = "guild-icon") {
   if (!guild.iconUrl) {
     const placeholder = document.createElement("span");
-    placeholder.className = "guild-icon-placeholder";
+    placeholder.className = `${className} guild-icon-placeholder`;
     placeholder.textContent = guild.name.charAt(0).toUpperCase();
     return placeholder;
   }
 
   const icon = document.createElement("img");
-  icon.className = "guild-icon";
+  icon.className = className;
   icon.src = guild.iconUrl;
   icon.alt = "";
   return icon;
 }
 
 function renderGuilds(guilds) {
-  guildsList.replaceChildren();
   guildsMenu.replaceChildren();
 
   if (!guilds.length) {
     const emptyMessage = document.createElement("p");
     emptyMessage.textContent = "No perteneces a ningun servidor.";
-    guildsList.append(emptyMessage);
     selectedGuildName.textContent = "Sin servidores";
     selectorButton.disabled = true;
     return;
@@ -121,12 +117,6 @@ function renderGuilds(guilds) {
     option.addEventListener("click", () => selectGuild(guild));
     guildsMenu.append(option);
 
-    const guildItem = option.cloneNode(true);
-    guildItem.className = "guild-item";
-    guildItem.removeAttribute("role");
-    guildItem.disabled = false;
-    guildItem.addEventListener("click", () => selectGuild(guild));
-    guildsList.append(guildItem);
   });
 
   const savedGuildId = localStorage.getItem(selectedGuildKey);
@@ -141,14 +131,30 @@ function renderUser(user) {
   navbarUserAvatar.alt = `Avatar de ${displayName}`;
   navbarUserName.textContent = displayName;
 
-  const avatar = document.createElement("img");
-  avatar.className = "dashboard-avatar";
-  avatar.src = avatarUrl;
-  avatar.alt = `Avatar de ${displayName}`;
+  document.title = `${displayName} | SoniaBot`;
+}
 
-  const welcome = document.createElement("p");
-  welcome.textContent = `Bienvenido, ${displayName}.`;
-  dashboardContent.replaceChildren(avatar, welcome);
+function setupNavigation() {
+  document.querySelectorAll(".sidebar-link").forEach((link) => {
+    link.addEventListener("click", () => {
+      document.querySelectorAll(".sidebar-link").forEach((item) => item.classList.remove("active"));
+      document.querySelectorAll(".dashboard-view").forEach((view) => view.classList.remove("active"));
+      link.classList.add("active");
+      const view = document.querySelector(`[data-view="${link.dataset.section}"]`);
+      if (view) view.classList.add("active");
+      dashboardSidebar.classList.remove("open");
+    });
+  });
+
+  document.querySelectorAll("[data-setting]").forEach((input) => {
+    const settings = JSON.parse(localStorage.getItem("soniabot.settings") || "{}");
+    if (typeof settings[input.dataset.setting] === "boolean") input.checked = settings[input.dataset.setting];
+    input.addEventListener("change", () => {
+      const current = JSON.parse(localStorage.getItem("soniabot.settings") || "{}");
+      current[input.dataset.setting] = input.checked;
+      localStorage.setItem("soniabot.settings", JSON.stringify(current));
+    });
+  });
 }
 
 async function loadDashboard() {
