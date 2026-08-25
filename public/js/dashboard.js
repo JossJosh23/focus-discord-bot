@@ -1,6 +1,35 @@
 const savedUserKey = "soniabot.user";
 const selectedGuildKey = "soniabot.selectedGuild";
 const defaultAvatar = "https://cdn.discordapp.com/embed/avatars/0.png";
+const isLocalEnvironment = ["localhost", "127.0.0.1"].includes(window.location.hostname);
+const mockUser = {
+  username: "TheGeorgex23",
+  globalName: "TheGeorgex23",
+  avatarUrl: defaultAvatar,
+  guilds: [
+    {
+      id: "mock-patriot-development",
+      name: "Patriot Development",
+      iconUrl: null,
+      memberCount: 128,
+      owner: true
+    },
+    {
+      id: "mock-soniabot-support",
+      name: "SoniaBot Support",
+      iconUrl: null,
+      memberCount: 64,
+      owner: false
+    },
+    {
+      id: "mock-gaming-latino",
+      name: "Gaming Latino",
+      iconUrl: null,
+      memberCount: 2310,
+      owner: false
+    }
+  ]
+};
 
 const logoutButton = document.querySelector("#logoutButton");
 const guildsMenu = document.querySelector("#guildsMenu");
@@ -132,6 +161,17 @@ function setupNavigation() {
 
 async function loadDashboard() {
   try {
+    if (isLocalEnvironment) {
+      const storedUser = JSON.parse(localStorage.getItem(savedUserKey) || "null");
+      const user = storedUser || mockUser;
+      if (!storedUser) localStorage.setItem(savedUserKey, JSON.stringify(mockUser));
+      renderUser(user);
+      renderGuilds(Array.isArray(user.guilds) ? user.guilds : []);
+      setupNavigation();
+      logoutButton.hidden = false;
+      return;
+    }
+
     const response = await fetch("/api/me", { credentials: "same-origin" });
     if (!response.ok) throw new Error("No autenticado");
 
@@ -185,7 +225,9 @@ document.addEventListener("click", (event) => {
 });
 
 logoutButton.addEventListener("click", async () => {
-  await fetch("/auth/logout", { method: "POST", credentials: "same-origin" });
+  if (!isLocalEnvironment) {
+    await fetch("/auth/logout", { method: "POST", credentials: "same-origin" });
+  }
   localStorage.removeItem(savedUserKey);
   localStorage.removeItem(selectedGuildKey);
   window.location.replace("/");
