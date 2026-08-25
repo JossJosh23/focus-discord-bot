@@ -1,6 +1,7 @@
 /* CONFIG BOT */
 
 const BOT_ID = "1540939068693544992";
+const STATUS_URL = "";
 
 const INVITE_URL =
 `https://discord.com/oauth2/authorize?client_id=${BOT_ID}&permissions=268446736&scope=bot%20applications.commands`;
@@ -28,7 +29,7 @@ function typing(){
 
 if(typewriter && i < text.length){
 
-typewriter.innerHTML += text.charAt(i);
+typewriter.textContent += text.charAt(i);
 i++;
 
 setTimeout(typing,40);
@@ -56,7 +57,7 @@ if(!startTime) startTime = timestamp;
 
 const progress = Math.min((timestamp-startTime)/duration,1);
 
-obj.innerHTML = Math.floor(progress*(end-start)+start).toLocaleString();
+obj.textContent = Math.floor(progress*(end-start)+start).toLocaleString();
 
 if(progress < 1) requestAnimationFrame(step);
 
@@ -190,45 +191,49 @@ if(typeof particlesJS === "function") particlesJS("particles-js", {
 
 async function checkBotStatus(){
 
+const statusText = document.querySelector(".status-text");
+const statusDot = document.querySelector(".status-dot");
+
+if(!statusText || !statusDot) return;
+
+if(!STATUS_URL){
+statusText.textContent = "Estado no disponible";
+statusDot.style.background = "#94a3b8";
+return;
+}
+
 try{
 
-const res = await fetch("https://149.56.155.18:25587/status", { mode: "cors" });
+const res = await fetch(STATUS_URL, { mode: "cors" });
 
 if(!res.ok) throw new Error(`Status endpoint returned ${res.status}`);
 
 const data = await res.json();
 
-const text = document.querySelector(".status-text");
-const dot = document.querySelector(".status-dot");
-
-if(!text || !dot) return;
-
 if(data.status === "online"){
 
-text.innerText = "Sistema Online";
-dot.style.background = "#22c55e";
+statusText.textContent = "Sistema Online";
+statusDot.style.background = "#22c55e";
 
 }
 
 if(data.status === "offline"){
 
-text.innerText = "Sistema Offline";
-dot.style.background = "#ef4444";
+statusText.textContent = "Sistema Offline";
+statusDot.style.background = "#ef4444";
 
 }
 
 }catch{
 
-const statusText = document.querySelector(".status-text");
-const statusDot = document.querySelector(".status-dot");
-if(statusText) statusText.innerText = "Sistema Offline";
-if(statusDot) statusDot.style.background = "#ef4444";
+statusText.textContent = "Sistema Offline";
+statusDot.style.background = "#ef4444";
 
 }
 
 }
 
 // revisar cada 5 segundos
-setInterval(checkBotStatus,5000);
+if(STATUS_URL) setInterval(checkBotStatus,5000);
 
 checkBotStatus();
