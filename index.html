@@ -40,10 +40,16 @@
 <a href="#about">Sobre</a>
 <a href="https://discord.gg/pf8XvQGDSY" target="_blank" rel="noopener noreferrer">Soporte</a>
 
-<button class="invite">
+<button id="loginButton" class="invite" type="button">
 <img src="src/discord-logo.svg" alt="" aria-hidden="true" style="width:20px;margin-right:8px;">
-Añadir a Discord
+Iniciar Sesion
 </button>
+
+<div id="userMenu" class="user-menu" hidden>
+<img id="userAvatar" class="user-avatar" alt="">
+<span id="userName"></span>
+<a class="dashboard-link" href="/dashboard.html">Dashboard</a>
+</div>
 
 </nav>
 
@@ -278,6 +284,7 @@ con herramientas de moderación, automatización y diversión.
 
 <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
 <script src="https://unpkg.com/scrollreveal"></script>
+<script src="auth-client.js"></script>
 <script src="script.js"></script>
 
 </body>

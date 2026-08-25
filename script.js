@@ -4,12 +4,12 @@ const BOT_ID = "1540939068693544992";
 const STATUS_URL = "";
 
 const INVITE_URL =
-`https://discord.com/oauth2/authorize?client_id=${1540939068693544992}&permissions=268446736&scope=bot%20applications.commands`;
+`https://discord.com/oauth2/authorize?client_id=${BOT_ID}&permissions=268446736&scope=bot%20applications.commands`;
 
 
 /* BOT INVITE */
 
-document.querySelectorAll(".invite,.hero-btn").forEach(btn=>{
+document.querySelectorAll(".hero-btn").forEach(btn=>{
 btn.addEventListener("click",()=>{
 window.open(INVITE_URL,"_blank","noopener,noreferrer")
 })
@@ -94,6 +94,8 @@ document.querySelectorAll(".faq-item").forEach(item=>{
 
 const question = item.querySelector(".faq-question");
 
+if(!question) return;
+
 question.addEventListener("click",()=>{
 
 item.classList.toggle("active")
@@ -109,6 +111,8 @@ question.setAttribute("aria-expanded", item.classList.contains("active"));
 const header = document.getElementById("header");
 
 window.addEventListener("scroll",()=>{
+
+if(!header) return;
 
 if(window.scrollY > 50){
 

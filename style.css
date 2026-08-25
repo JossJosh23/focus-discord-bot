@@ -610,6 +610,53 @@ align-items:center;
 gap:8px;
 }
 
+.user-menu{
+display:flex;
+align-items:center;
+gap:10px;
+}
+
+.user-avatar{
+width:32px;
+height:32px;
+border-radius:50%;
+object-fit:cover;
+}
+
+.dashboard-link{
+color:white;
+text-decoration:none;
+font-weight:500;
+}
+
+.dashboard-link:hover{
+color:#3b82f6;
+}
+
+.dashboard-page{
+min-height:100vh;
+display:grid;
+place-items:center;
+padding:32px;
+}
+
+.dashboard-panel{
+width:min(100%, 640px);
+padding:40px;
+text-align:center;
+background:rgba(255,255,255,0.05);
+border:1px solid rgba(255,255,255,0.1);
+border-radius:12px;
+}
+
+.dashboard-avatar{
+width:96px;
+height:96px;
+border-radius:50%;
+object-fit:cover;
+margin:24px auto 8px;
+}
+
 .status-dot{
 width:10px;
 height:10px;

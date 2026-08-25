@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard | SoniaBot</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="dashboard-page">
+<section class="dashboard-panel" aria-live="polite">
+<h1>Dashboard de SoniaBot</h1>
+<div id="dashboardContent">Comprobando sesion...</div>
+<button id="logoutButton" type="button" hidden>Cerrar sesion</button>
+</section>
+</main>
+<script>
+const dashboardContent = document.querySelector("#dashboardContent");
+const logoutButton = document.querySelector("#logoutButton");
+
+async function loadDashboard() {
+  try {
+    const response = await fetch("/api/me", { credentials: "same-origin" });
+    if (!response.ok) throw new Error("No autenticado");
+
+    const { user } = await response.json();
+    localStorage.setItem("soniabot.user", JSON.stringify(user));
+    const avatar = document.createElement("img");
+    avatar.className = "dashboard-avatar";
+    avatar.src = user.avatarUrl;
+    avatar.alt = `Avatar de ${user.globalName}`;
+
+    const welcome = document.createElement("p");
+    welcome.textContent = `Bienvenido, ${user.globalName}.`;
+    dashboardContent.replaceChildren(avatar, welcome);
+    logoutButton.hidden = false;
+  } catch {
+    localStorage.removeItem("soniabot.user");
+    window.location.replace("/");
+  }
+}
+
+logoutButton.addEventListener("click", async () => {
+  await fetch("/auth/logout", { method: "POST", credentials: "same-origin" });
+  localStorage.removeItem("soniabot.user");
+  window.location.replace("/");
+});
+
+loadDashboard();
+</script>
+</body>
+</html>
