@@ -45,6 +45,14 @@ const userMenuButton = document.querySelector("#userMenuButton");
 const userMenu = document.querySelector("#userMenu");
 const mobileMenuButton = document.querySelector("#mobileMenuButton");
 const dashboardSidebar = document.querySelector("#dashboardSidebar");
+const welcomeName = document.querySelector("#welcomeName");
+const serverMembers = document.querySelector("#serverMembers");
+const serverRoles = document.querySelector("#serverRoles");
+const serverAge = document.querySelector("#serverAge");
+const currentDate = document.querySelector("#currentDate");
+const currentTime = document.querySelector("#currentTime");
+const dashboardGuildGrid = document.querySelector("#dashboardGuildGrid");
+const guildTotalLabel = document.querySelector("#guildTotalLabel");
 
 function selectGuild(guild) {
   localStorage.setItem(selectedGuildKey, guild.id);
@@ -62,6 +70,12 @@ function selectGuild(guild) {
 
   bannerGuildName.textContent = guild.name;
   bannerMemberCount.textContent = Number(guild.memberCount || 0).toLocaleString();
+  serverMembers.textContent = Number(guild.memberCount || 0).toLocaleString();
+  serverRoles.textContent = guild.roleCount || "--";
+  serverAge.textContent = guild.createdAt ? formatGuildAge(guild.createdAt) : "--";
+  serverMembers.textContent = Number(guild.memberCount || 0).toLocaleString();
+  serverRoles.textContent = guild.roleCount || "--";
+  serverAge.textContent = guild.createdAt ? formatGuildAge(guild.createdAt) : "--";
   bannerGuildIcon.replaceChildren(createGuildIcon(guild, "banner-guild-icon"));
 
   document.querySelectorAll(".guild-option").forEach((option) => {
@@ -70,6 +84,28 @@ function selectGuild(guild) {
 
   guildsMenu.hidden = true;
   selectorButton.setAttribute("aria-expanded", "false");
+}
+
+function formatGuildAge(createdAt) {
+  const years = Math.max(0, Math.floor((Date.now() - new Date(createdAt).getTime()) / 31557600000));
+  return years ? `${years} año${years === 1 ? "" : "s"}` : "Nueva";
+}
+
+function updateClock() {
+  const now = new Date();
+  currentDate.textContent = now.toLocaleDateString("es-ES", { day: "2-digit", month: "short" });
+  currentTime.textContent = now.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+}
+
+function formatGuildAge(createdAt) {
+  const years = Math.max(0, Math.floor((Date.now() - new Date(createdAt).getTime()) / 31557600000));
+  return years ? `${years} año${years === 1 ? "" : "s"}` : "Nueva";
+}
+
+function updateClock() {
+  const now = new Date();
+  currentDate.textContent = now.toLocaleDateString("es-ES", { day: "2-digit", month: "short" });
+  currentTime.textContent = now.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
 }
 
 function createGuildIcon(guild, className = "guild-icon") {
@@ -89,6 +125,8 @@ function createGuildIcon(guild, className = "guild-icon") {
 
 function renderGuilds(guilds) {
   guildsMenu.replaceChildren();
+  dashboardGuildGrid.replaceChildren();
+  guildTotalLabel.textContent = `${guilds.length} servidor${guilds.length === 1 ? "" : "es"}`;
 
   if (!guilds.length) {
     const emptyMessage = document.createElement("p");
@@ -119,6 +157,24 @@ function renderGuilds(guilds) {
     option.addEventListener("click", () => selectGuild(guild));
     guildsMenu.append(option);
 
+    const card = document.createElement("article");
+    card.className = "dashboard-guild-card";
+    card.append(createGuildIcon(guild, "dashboard-guild-card-icon"));
+    const cardInfo = document.createElement("div");
+    cardInfo.className = "dashboard-guild-card-info";
+    const cardName = document.createElement("h3");
+    cardName.textContent = guild.name;
+    const cardMeta = document.createElement("p");
+    cardMeta.textContent = `${Number(guild.memberCount || 0).toLocaleString()} miembros`;
+    cardInfo.append(cardName, cardMeta);
+    const openButton = document.createElement("button");
+    openButton.type = "button";
+    openButton.className = "guild-open-button";
+    openButton.textContent = "Abrir";
+    openButton.addEventListener("click", () => selectGuild(guild));
+    card.append(cardInfo, openButton);
+    dashboardGuildGrid.append(card);
+
   });
 
   const savedGuildId = localStorage.getItem(selectedGuildKey);
@@ -132,6 +188,8 @@ function renderUser(user) {
   navbarUserAvatar.src = avatarUrl;
   navbarUserAvatar.alt = `Avatar de ${displayName}`;
   navbarUserName.textContent = displayName;
+  welcomeName.textContent = displayName;
+  welcomeName.textContent = displayName;
 
   document.title = `${displayName} | SoniaBot`;
 }
@@ -234,3 +292,5 @@ logoutButton.addEventListener("click", async () => {
 });
 
 loadDashboard();
+updateClock();
+setInterval(updateClock, 60000);

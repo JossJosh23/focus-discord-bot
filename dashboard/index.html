@@ -7,13 +7,15 @@
 <link rel="stylesheet" href="../public/css/style.css">
 </head>
 <body class="dashboard-body">
+<div class="dashboard-announcement"><strong>SoniaBot Control Center v2.0</strong><span class="announcement-badge">NUEVO</span><span>Gestiona tu comunidad desde un solo lugar</span></div>
 <header class="dashboard-navbar">
 <a class="dashboard-brand" href="/">
 <img src="../public/assets/logo1.png" alt="">
 <span>Sonia Bot</span>
+<small>CONTROL CENTER</small>
 </a>
 
-<div class="dashboard-center">
+<div class="dashboard-status">
 <span class="bot-status"><span class="status-dot"></span>Online</span>
 <a href="https://discord.gg/pf8XvQGDSY" target="_blank" rel="noopener noreferrer">Soporte</a>
 </div>
@@ -35,7 +37,6 @@
 <span aria-hidden="true">⌄</span>
 </button>
 <div class="user-menu" id="userMenu" role="menu" hidden>
-<a href="/" role="menuitem">Volver a Inicio</a>
 <button id="logoutButton" type="button" role="menuitem">Cerrar Sesion</button>
 </div>
 </div>
@@ -48,23 +49,33 @@
 <button class="sidebar-link active" type="button" data-section="overview">▦ <span>Vision General</span></button>
 <button class="sidebar-link" type="button" data-section="welcome">✦ <span>Bienvenidas</span></button>
 <button class="sidebar-link" type="button" data-section="moderation">◆ <span>Moderacion</span></button>
+<p class="sidebar-label">INTEGRACIONES</p>
 <button class="sidebar-link" type="button" data-section="logs">≡ <span>Webhooks / Logs</span></button>
+<button class="sidebar-link" type="button" data-section="api">&lt;/&gt; <span>API</span></button>
+<p class="sidebar-label">CONFIGURACION</p>
 <button class="sidebar-link" type="button" data-section="settings">⚙ <span>Configuracion</span></button>
+<button class="sidebar-link" type="button" data-section="premium">♛ <span>Premium</span></button>
+<button class="sidebar-link" type="button" data-section="support">? <span>Soporte</span></button>
 </nav>
+<div class="premium-card"><span class="premium-star">✦</span><strong>SoniaBot Premium</strong><p>Desbloquea todas las herramientas.</p><button type="button" data-section="premium">Ver Premium <span>→</span></button></div>
 </aside>
 
 <main class="dashboard-main">
 <section class="dashboard-view active" data-view="overview">
-<div class="dashboard-heading"><div><p class="eyebrow">Panel de control</p><h1>Vision General</h1></div><button class="mobile-menu-button" id="mobileMenuButton" type="button">☰</button></div>
+<div class="dashboard-heading"><div><p class="eyebrow">Panel de control</p><h1>¡Bienvenido de vuelta, <span id="welcomeName">Usuario</span>! 👋</h1><p class="dashboard-subtitle">Aquí tienes un resumen de lo que ocurre en tu comunidad.</p></div><div class="date-widget"><span>HOY</span><strong id="currentDate">--</strong><small id="currentTime">--:--</small></div><button class="mobile-menu-button" id="mobileMenuButton" type="button">☰</button></div>
 <div class="server-banner">
 <div id="bannerGuildIcon" class="banner-guild-icon guild-icon-placeholder">S</div>
-<div><p class="eyebrow">Servidor seleccionado</p><h2 id="bannerGuildName">Seleccionar servidor</h2><p><span id="bannerMemberCount">0</span> miembros</p></div>
+<div><p class="eyebrow">SERVIDOR SELECCIONADO</p><h2 id="bannerGuildName">Seleccionar servidor</h2><p><span id="bannerMemberCount">0</span> miembros activos</p></div><button class="discord-server-button" type="button">Ver en Discord <span>↗</span></button>
 </div>
-<div class="module-grid">
-<article class="module-card"><div><h3>Moderacion automatica</h3><p>Protege el servidor contra spam y contenido no deseado.</p></div><label class="toggle"><input type="checkbox" data-setting="moderation" checked><span></span></label></article>
-<article class="module-card"><div><h3>Mensajes de bienvenida</h3><p>Recibe a los nuevos miembros con un mensaje personalizado.</p></div><label class="toggle"><input type="checkbox" data-setting="welcome" checked><span></span></label></article>
-<article class="module-card"><div><h3>Logs del servidor</h3><p>Registra cambios y eventos importantes de tu comunidad.</p></div><label class="toggle"><input type="checkbox" data-setting="logs"><span></span></label></article>
-<article class="module-card"><div><h3>Roles automaticos</h3><p>Asigna roles a los miembros cuando se unen al servidor.</p></div><label class="toggle"><input type="checkbox" data-setting="roles"><span></span></label></article>
+<div class="server-stats"><div><strong id="serverMembers">0</strong><span>Miembros</span></div><div><strong id="serverRoles">--</strong><span>Roles</span></div><div><strong id="serverAge">--</strong><span>Antigüedad</span></div></div>
+<div class="quick-stats"><div class="section-title"><div><p class="eyebrow">RENDIMIENTO</p><h2>Estadísticas rápidas</h2></div><span>Últimos 30 días</span></div><div class="quick-stats-grid"><article><span class="metric-icon blue">✉</span><div><strong>12.8K</strong><span>Mensajes</span></div><em class="positive">+12.5%</em></article><article><span class="metric-icon green">♙</span><div><strong>246</strong><span>Nuevos miembros</span></div><em class="positive">+8.2%</em></article><article><span class="metric-icon purple">◆</span><div><strong>1,429</strong><span>Acciones mod</span></div><em class="negative">-5.2%</em></article><article><span class="metric-icon orange">!</span><div><strong>38</strong><span>Warns activos</span></div><em class="negative">-2.1%</em></article></div></div>
+<div class="guild-library-heading"><div><p class="eyebrow">Tus comunidades</p><h2>Selecciona un servidor</h2></div><span id="guildTotalLabel">0 servidores</span></div>
+<div id="dashboardGuildGrid" class="dashboard-guild-grid"></div>
+<div class="section-title tools-title"><div><p class="eyebrow">HERRAMIENTAS RAPIDAS</p><h2>Gestiona tus módulos</h2></div></div><div class="module-grid">
+<article class="module-card"><span class="tool-icon blue">◈</span><div><h3>Moderacion automatica</h3><p>Protege tu comunidad 24/7.</p></div><label class="toggle"><input type="checkbox" data-setting="moderation" checked><span></span></label><b>›</b></article>
+<article class="module-card"><span class="tool-icon green">✦</span><div><h3>Mensajes de bienvenida</h3><p>Recibe a cada nuevo miembro.</p></div><label class="toggle"><input type="checkbox" data-setting="welcome" checked><span></span></label><b>›</b></article>
+<article class="module-card"><span class="tool-icon purple">≡</span><div><h3>Logs del servidor</h3><p>Controla toda la actividad.</p></div><label class="toggle"><input type="checkbox" data-setting="logs"><span></span></label><b>›</b></article>
+<article class="module-card"><span class="tool-icon orange">◇</span><div><h3>Roles automaticos</h3><p>Organiza a tus miembros.</p></div><label class="toggle"><input type="checkbox" data-setting="roles"><span></span></label><b>›</b></article>
 </div>
 </section>
 <section class="dashboard-view" data-view="welcome"><div class="dashboard-heading"><div><p class="eyebrow">Configuracion</p><h1>Bienvenidas</h1></div></div><div class="empty-view">Configura los mensajes de bienvenida de tu servidor.</div></section>
