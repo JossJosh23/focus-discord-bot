@@ -56,6 +56,16 @@ const currentDate = document.querySelector("#currentDate");
 const currentTime = document.querySelector("#currentTime");
 const dashboardGuildGrid = document.querySelector("#dashboardGuildGrid");
 const guildTotalLabel = document.querySelector("#guildTotalLabel");
+const statMessages = document.querySelector("#statMessages");
+const statNewMembers = document.querySelector("#statNewMembers");
+const statModeration = document.querySelector("#statModeration");
+const statWarns = document.querySelector("#statWarns");
+const statChangeElements = {
+  messages: document.querySelector("#messagesChange"),
+  newMembers30d: document.querySelector("#membersChange"),
+  moderationActions: document.querySelector("#moderationChange"),
+  warns: document.querySelector("#warnsChange")
+};
 
 function selectGuild(guild) {
   localStorage.setItem(selectedGuildKey, guild.id);
@@ -84,17 +94,59 @@ function selectGuild(guild) {
 
   guildsMenu.hidden = true;
   selectorButton.setAttribute("aria-expanded", "false");
+  loadGuildStats(guild.id);
 }
 
-function formatGuildAge(createdAt) {
-  const years = Math.max(0, Math.floor((Date.now() - new Date(createdAt).getTime()) / 31557600000));
-  return years ? `${years} año${years === 1 ? "" : "s"}` : "Nueva";
+function setStatsLoading(isLoading) {
+  [serverMembers, serverRoles, serverAge, bannerMemberCount, statMessages, statNewMembers, statModeration, statWarns]
+    .forEach((element) => {
+      if (element) {
+        element.textContent = isLoading ? "..." : element.textContent;
+        element.classList.toggle("is-loading", isLoading);
+      }
+    });
 }
 
-function updateClock() {
-  const now = new Date();
-  currentDate.textContent = now.toLocaleDateString("es-ES", { day: "2-digit", month: "short" });
-  currentTime.textContent = now.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+function renderGuildStats(data) {
+  const guild = data.guild;
+  const stats = data.stats;
+  serverMembers.textContent = Number(guild.memberCount || 0).toLocaleString();
+  serverRoles.textContent = guild.roleCount ?? "--";
+  serverAge.textContent = guild.createdAt ? formatGuildAge(guild.createdAt) : "--";
+  bannerMemberCount.textContent = Number(guild.memberCount || 0).toLocaleString();
+  statMessages.textContent = Number(stats.messages || 0).toLocaleString();
+  statNewMembers.textContent = Number(stats.newMembers30d || 0).toLocaleString();
+  statModeration.textContent = Number(stats.moderationActions || 0).toLocaleString();
+  statWarns.textContent = Number(stats.warns || 0).toLocaleString();
+  Object.entries(statChangeElements).forEach(([key, element]) => {
+    if (!element) return;
+    const change = stats.changes?.[key];
+    element.textContent = change === null || change === undefined ? "Sin histórico" : `${change >= 0 ? "+" : ""}${change}%`;
+    element.className = `metric-change ${change >= 0 ? "positive" : "negative"}`;
+  });
+}
+
+async function loadGuildStats(guildId) {
+  setStatsLoading(true);
+
+  if (isLocalEnvironment) {
+    renderGuildStats({
+      guild: { memberCount: 128, roleCount: 12, createdAt: "2022-01-15T00:00:00.000Z" },
+      stats: { messages: 12800, newMembers30d: 246, moderationActions: 1429, warns: 38, changes: { messages: 12.5, newMembers30d: 8.2, moderationActions: -5.2, warns: -2.1 } }
+    });
+    return;
+  }
+
+  try {
+    const response = await fetch(`/api/guilds/${encodeURIComponent(guildId)}/stats`, {
+      credentials: "same-origin"
+    });
+    if (!response.ok) throw new Error("No se pudieron cargar las estadisticas");
+    renderGuildStats(await response.json());
+  } catch {
+    [serverMembers, serverRoles, serverAge, bannerMemberCount, statMessages, statNewMembers, statModeration, statWarns]
+      .forEach((element) => { if (element) element.textContent = "--"; });
+  }
 }
 
 function formatGuildAge(createdAt) {
@@ -197,7 +249,6 @@ function renderUser(user) {
   navbarUserAvatar.src = avatarUrl;
   navbarUserAvatar.alt = `Avatar de ${displayName}`;
   navbarUserName.textContent = displayName;
-  welcomeName.textContent = displayName;
   welcomeName.textContent = displayName;
 
   document.title = `${displayName} | SoniaBot`;

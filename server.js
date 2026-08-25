@@ -3,10 +3,12 @@ require("dotenv").config();
 const crypto = require("crypto");
 const express = require("express");
 const session = require("express-session");
+const path = require("path");
+const { getGuildStats, recordEvent } = require("./database");
 
 const app = express();
 const port = Number(process.env.PORT) || 3000;
-const publicDir = __dirname;
+const publicDir = path.join(__dirname, "public");
 
 app.set("trust proxy", 1);
 
@@ -28,7 +30,9 @@ app.use(session({
   }
 }));
 
-app.use(express.static(publicDir));
+app.use("/public", express.static(publicDir));
+app.use("/dashboard", express.static(path.join(__dirname, "dashboard"), { index: "index.html" }));
+app.get("/", (_req, res) => res.sendFile(path.join(__dirname, "index.html")));
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true });
@@ -139,6 +143,70 @@ app.get("/api/me", (req, res) => {
   req.session.user = user;
   res.json({ authenticated: true, user });
 });
+
+app.get("/api/guilds/:guildId/stats", async (req, res) => {
+  if (!req.session.user) return res.status(401).json({ authenticated: false });
+
+  const guild = (req.session.user.guilds || []).find((item) => item.id === req.params.guildId);
+  if (!guild || (!guild.owner && !hasAdministratorPermission(guild.permissions))) {
+    return res.status(403).json({ error: "No tienes permisos de administrador en este servidor" });
+  }
+
+  try {
+    const discordGuild = await fetchDiscordGuild(req.params.guildId);
+    const historical = getGuildStats(req.params.guildId);
+    const createdAt = getDiscordCreationDate(req.params.guildId);
+
+    res.json({
+      guild: {
+        id: req.params.guildId,
+        name: discordGuild?.name || guild.name,
+        iconUrl: discordGuild?.icon
+          ? `https://cdn.discordapp.com/icons/${req.params.guildId}/${discordGuild.icon}.png?size=128`
+          : guild.iconUrl,
+        memberCount: discordGuild?.approximate_member_count || discordGuild?.approximate_presence_count || guild.memberCount || 0,
+        roleCount: Array.isArray(discordGuild?.roles) ? discordGuild.roles.length : null,
+        createdAt: createdAt.toISOString()
+      },
+      stats: historical
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(502).json({ error: "No se pudieron obtener las estadisticas del servidor" });
+  }
+});
+
+app.post("/api/events", (req, res) => {
+  if (!process.env.EVENT_INGEST_TOKEN || req.get("x-event-token") !== process.env.EVENT_INGEST_TOKEN) {
+    return res.status(401).json({ error: "Token de eventos no valido" });
+  }
+
+  try {
+    const result = recordEvent(req.body);
+    res.status(201).json({ ok: true, id: result.lastInsertRowid });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+async function fetchDiscordGuild(guildId) {
+  if (!process.env.DISCORD_BOT_TOKEN) return null;
+  const headers = { Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}` };
+  const response = await fetch(`https://discord.com/api/v10/guilds/${guildId}?with_counts=true`, {
+    headers
+  });
+  if (!response.ok) throw new Error(`Discord guild API returned ${response.status}`);
+  const guild = await response.json();
+  const rolesResponse = await fetch(`https://discord.com/api/v10/guilds/${guildId}/roles`, { headers });
+  if (!rolesResponse.ok) throw new Error(`Discord roles API returned ${rolesResponse.status}`);
+  guild.roles = await rolesResponse.json();
+  return guild;
+}
+
+function getDiscordCreationDate(snowflake) {
+  const timestamp = Number((BigInt(snowflake) >> 22n) + 1420070400000n);
+  return new Date(timestamp);
+}
 
 app.post("/auth/logout", (req, res) => {
   req.session.destroy(() => res.clearCookie("soniabot.sid").json({ ok: true }));

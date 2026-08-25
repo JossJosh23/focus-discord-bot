@@ -26,6 +26,9 @@ CLIENT_ID=1540939068693544992
 CLIENT_SECRET=tu_client_secret_real
 REDIRECT_URI=https://soniabot.playorch.tech/auth/callback
 SESSION_SECRET=una_clave_larga_y_aleatoria
+DISCORD_BOT_TOKEN=token_privado_del_bot
+EVENT_INGEST_TOKEN=token_privado_para_eventos
+DATABASE_PATH=soniabot.sqlite
 NODE_ENV=production
 ```
 
@@ -36,3 +39,7 @@ https://soniabot.playorch.tech/auth/callback
 ```
 
 Comprueba el despliegue visitando `https://soniabot.playorch.tech/health`; debe responder `{"ok":true}`. Si responde `404`, el dominio sigue apuntando a un sitio estatico y no al proceso Node.js.
+
+## Eventos del bot
+
+Este repositorio no contiene el cliente `discord.js` del bot. Usa `bot-events.example.js` en el proyecto del bot, configura `SONIABOT_STATS_API_URL` con la URL de esta web y `SONIABOT_EVENT_INGEST_TOKEN` con el mismo valor de `EVENT_INGEST_TOKEN`.
