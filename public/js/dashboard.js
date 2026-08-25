@@ -9,7 +9,6 @@ const selectedGuildIcon = document.querySelector("#selectedGuildIcon");
 const selectedGuildName = document.querySelector("#selectedGuildName");
 const navbarUserAvatar = document.querySelector("#navbarUserAvatar");
 const navbarUserName = document.querySelector("#navbarUserName");
-const previewMode = new URLSearchParams(window.location.search).get("preview") === "1";
 const bannerGuildIcon = document.querySelector("#bannerGuildIcon");
 const bannerGuildName = document.querySelector("#bannerGuildName");
 const bannerMemberCount = document.querySelector("#bannerMemberCount");
@@ -17,32 +16,6 @@ const userMenuButton = document.querySelector("#userMenuButton");
 const userMenu = document.querySelector("#userMenu");
 const mobileMenuButton = document.querySelector("#mobileMenuButton");
 const dashboardSidebar = document.querySelector("#dashboardSidebar");
-
-const previewUser = {
-  username: "demo_user",
-  globalName: "Usuario Demo",
-  avatarUrl: defaultAvatar,
-  guilds: [
-    {
-      id: "preview-1",
-      name: "SoniaBot Support",
-      iconUrl: null,
-      owner: true
-    },
-    {
-      id: "preview-2",
-      name: "Mi Comunidad Discord",
-      iconUrl: null,
-      owner: false
-    },
-    {
-      id: "preview-3",
-      name: "Gaming Latino",
-      iconUrl: null,
-      owner: false
-    }
-  ]
-};
 
 function selectGuild(guild) {
   localStorage.setItem(selectedGuildKey, guild.id);
@@ -159,14 +132,6 @@ function setupNavigation() {
 
 async function loadDashboard() {
   try {
-    if (previewMode) {
-      renderUser(previewUser);
-      renderGuilds(previewUser.guilds);
-      setupNavigation();
-      logoutButton.hidden = false;
-      return;
-    }
-
     const response = await fetch("/api/me", { credentials: "same-origin" });
     if (!response.ok) throw new Error("No autenticado");
 
