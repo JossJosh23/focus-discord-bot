@@ -88,6 +88,20 @@ app.get("/auth/callback", async (req, res) => {
     if (!guildsResponse.ok) throw new Error("No se pudieron obtener los servidores de Discord");
     const guilds = await guildsResponse.json();
 
+    const manageableGuilds = guilds
+      .filter((guild) => Boolean(guild.owner) || hasAdministratorPermission(guild.permissions))
+      .map((guild) => ({
+        id: guild.id,
+        name: guild.name,
+        iconUrl: guild.icon
+          ? `https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png?size=128`
+          : null,
+        owner: Boolean(guild.owner),
+        administrator: hasAdministratorPermission(guild.permissions),
+        permissions: guild.permissions,
+        memberCount: guild.approximate_member_count || 0
+      }));
+
     req.session.user = {
       id: user.id,
       username: user.username,
@@ -96,16 +110,7 @@ app.get("/auth/callback", async (req, res) => {
       avatarUrl: user.avatar
         ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=128`
         : `https://cdn.discordapp.com/embed/avatars/${Number(BigInt(user.id) % 5n)}.png`,
-      guilds: guilds.map((guild) => ({
-        id: guild.id,
-        name: guild.name,
-        iconUrl: guild.icon
-          ? `https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png?size=128`
-          : null,
-        owner: Boolean(guild.owner),
-        permissions: guild.permissions,
-        memberCount: guild.approximate_member_count || 0
-      }))
+      guilds: manageableGuilds
     };
 
     res.redirect("/dashboard/");
@@ -115,9 +120,24 @@ app.get("/auth/callback", async (req, res) => {
   }
 });
 
+function hasAdministratorPermission(permissions) {
+  try {
+    return (BigInt(permissions || "0") & 8n) === 8n;
+  } catch {
+    return false;
+  }
+}
+
 app.get("/api/me", (req, res) => {
   if (!req.session.user) return res.status(401).json({ authenticated: false });
-  res.json({ authenticated: true, user: req.session.user });
+  const user = {
+    ...req.session.user,
+    guilds: (req.session.user.guilds || []).filter(
+      (guild) => Boolean(guild.owner) || hasAdministratorPermission(guild.permissions)
+    )
+  };
+  req.session.user = user;
+  res.json({ authenticated: true, user });
 });
 
 app.post("/auth/logout", (req, res) => {

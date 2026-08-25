@@ -12,21 +12,24 @@ const mockUser = {
       name: "Patriot Development",
       iconUrl: null,
       memberCount: 128,
-      owner: true
+      owner: true,
+      administrator: true
     },
     {
       id: "mock-soniabot-support",
       name: "SoniaBot Support",
       iconUrl: null,
       memberCount: 64,
-      owner: false
+      owner: false,
+      administrator: true
     },
     {
       id: "mock-gaming-latino",
       name: "Gaming Latino",
       iconUrl: null,
       memberCount: 2310,
-      owner: false
+      owner: false,
+      administrator: false
     }
   ]
 };
@@ -70,9 +73,6 @@ function selectGuild(guild) {
 
   bannerGuildName.textContent = guild.name;
   bannerMemberCount.textContent = Number(guild.memberCount || 0).toLocaleString();
-  serverMembers.textContent = Number(guild.memberCount || 0).toLocaleString();
-  serverRoles.textContent = guild.roleCount || "--";
-  serverAge.textContent = guild.createdAt ? formatGuildAge(guild.createdAt) : "--";
   serverMembers.textContent = Number(guild.memberCount || 0).toLocaleString();
   serverRoles.textContent = guild.roleCount || "--";
   serverAge.textContent = guild.createdAt ? formatGuildAge(guild.createdAt) : "--";
@@ -124,6 +124,7 @@ function createGuildIcon(guild, className = "guild-icon") {
 }
 
 function renderGuilds(guilds) {
+  guilds = guilds.filter((guild) => guild.owner || guild.administrator || hasAdministratorPermission(guild.permissions));
   guildsMenu.replaceChildren();
   dashboardGuildGrid.replaceChildren();
   guildTotalLabel.textContent = `${guilds.length} servidor${guilds.length === 1 ? "" : "es"}`;
@@ -180,6 +181,14 @@ function renderGuilds(guilds) {
   const savedGuildId = localStorage.getItem(selectedGuildKey);
   const selectedGuild = guilds.find((guild) => guild.id === savedGuildId) || guilds[0];
   selectGuild(selectedGuild);
+}
+
+function hasAdministratorPermission(permissions) {
+  try {
+    return (BigInt(permissions || "0") & 8n) === 8n;
+  } catch {
+    return false;
+  }
 }
 
 function renderUser(user) {
