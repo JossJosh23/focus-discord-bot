@@ -81,7 +81,7 @@ app.get("/auth/callback", async (req, res) => {
     if (!userResponse.ok) throw new Error("No se pudo obtener el usuario de Discord");
     const user = await userResponse.json();
 
-    const guildsResponse = await fetch("https://discord.com/api/users/@me/guilds", {
+    const guildsResponse = await fetch("https://discord.com/api/users/@me/guilds?with_counts=true", {
       headers: { Authorization: `${token.token_type} ${token.access_token}` }
     });
 
@@ -103,7 +103,8 @@ app.get("/auth/callback", async (req, res) => {
           ? `https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png?size=128`
           : null,
         owner: Boolean(guild.owner),
-        permissions: guild.permissions
+        permissions: guild.permissions,
+        memberCount: guild.approximate_member_count || 0
       }))
     };
 

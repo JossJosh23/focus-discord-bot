@@ -12,6 +12,13 @@ const selectedGuildName = document.querySelector("#selectedGuildName");
 const navbarUserAvatar = document.querySelector("#navbarUserAvatar");
 const navbarUserName = document.querySelector("#navbarUserName");
 const previewMode = new URLSearchParams(window.location.search).get("preview") === "1";
+const bannerGuildIcon = document.querySelector("#bannerGuildIcon");
+const bannerGuildName = document.querySelector("#bannerGuildName");
+const bannerMemberCount = document.querySelector("#bannerMemberCount");
+const userMenuButton = document.querySelector("#userMenuButton");
+const userMenu = document.querySelector("#userMenu");
+const mobileMenuButton = document.querySelector("#mobileMenuButton");
+const dashboardSidebar = document.querySelector("#dashboardSidebar");
 
 const previewUser = {
   username: "demo_user",
@@ -52,6 +59,10 @@ function selectGuild(guild) {
   } else {
     selectedGuildIcon.textContent = guild.name.charAt(0).toUpperCase();
   }
+
+  bannerGuildName.textContent = guild.name;
+  bannerMemberCount.textContent = Number(guild.memberCount || 0).toLocaleString();
+  bannerGuildIcon.replaceChildren(createGuildIcon(guild, "banner-guild-icon"));
 
   document.querySelectorAll(".guild-option").forEach((option) => {
     option.setAttribute("aria-selected", option.dataset.guildId === guild.id ? "true" : "false");
@@ -145,6 +156,7 @@ async function loadDashboard() {
     if (previewMode) {
       renderUser(previewUser);
       renderGuilds(previewUser.guilds);
+      setupNavigation();
       logoutButton.hidden = false;
       return;
     }
@@ -156,6 +168,7 @@ async function loadDashboard() {
     localStorage.setItem(savedUserKey, JSON.stringify(user));
     renderUser(user);
     renderGuilds(Array.isArray(user.guilds) ? user.guilds : []);
+    setupNavigation();
     logoutButton.hidden = false;
   } catch {
     localStorage.removeItem(savedUserKey);
@@ -167,6 +180,37 @@ selectorButton.addEventListener("click", () => {
   const isOpen = selectorButton.getAttribute("aria-expanded") === "true";
   selectorButton.setAttribute("aria-expanded", String(!isOpen));
   guildsMenu.hidden = isOpen;
+});
+
+userMenuButton.addEventListener("click", () => {
+  const isOpen = userMenuButton.getAttribute("aria-expanded") === "true";
+  userMenuButton.setAttribute("aria-expanded", String(!isOpen));
+  userMenu.hidden = isOpen;
+});
+
+mobileMenuButton.addEventListener("click", () => {
+  dashboardSidebar.classList.toggle("open");
+});
+
+document.querySelectorAll(".sidebar-link").forEach((link) => {
+  link.addEventListener("click", () => {
+    document.querySelectorAll(".sidebar-link").forEach((item) => item.classList.remove("active"));
+    document.querySelectorAll(".dashboard-view").forEach((view) => view.classList.remove("active"));
+    link.classList.add("active");
+    document.querySelector(`[data-view="${link.dataset.section}"]`).classList.add("active");
+    dashboardSidebar.classList.remove("open");
+  });
+});
+
+document.addEventListener("click", (event) => {
+  if (!document.querySelector("#userDropdown").contains(event.target)) {
+    userMenuButton.setAttribute("aria-expanded", "false");
+    userMenu.hidden = true;
+  }
+  if (!document.querySelector("#serverSelector").contains(event.target)) {
+    selectorButton.setAttribute("aria-expanded", "false");
+    guildsMenu.hidden = true;
+  }
 });
 
 logoutButton.addEventListener("click", async () => {

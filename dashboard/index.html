@@ -6,12 +6,17 @@
 <title>Dashboard | SoniaBot</title>
 <link rel="stylesheet" href="/public/css/style.css">
 </head>
-<body>
+<body class="dashboard-body">
 <header class="dashboard-navbar">
 <a class="dashboard-brand" href="/">
 <img src="/public/assets/logo1.png" alt="">
 <span>Sonia Bot</span>
 </a>
+
+<div class="dashboard-center">
+<span class="bot-status"><span class="status-dot"></span>Online</span>
+<a href="https://discord.gg/pf8XvQGDSY" target="_blank" rel="noopener noreferrer">Soporte</a>
+</div>
 
 <div class="dashboard-actions">
 <div class="server-selector" id="serverSelector">
@@ -23,24 +28,51 @@
 <div id="guildsMenu" class="guilds-menu" role="listbox" aria-label="Servidores de Discord" hidden></div>
 </div>
 
-<div class="dashboard-user">
+<div class="user-dropdown" id="userDropdown">
+<button class="dashboard-user" id="userMenuButton" type="button" aria-haspopup="menu" aria-expanded="false">
 <img id="navbarUserAvatar" src="https://cdn.discordapp.com/embed/avatars/0.png" alt="">
 <span id="navbarUserName">Usuario</span>
+<span aria-hidden="true">⌄</span>
+</button>
+<div class="user-menu" id="userMenu" role="menu" hidden>
+<a href="/" role="menuitem">Volver a Inicio</a>
+<button id="logoutButton" type="button" role="menuitem">Cerrar Sesion</button>
+</div>
 </div>
 </div>
 </header>
 
-<main class="dashboard-page">
-<section class="dashboard-panel" aria-live="polite">
-<h1>Dashboard de SoniaBot</h1>
-<div id="dashboardContent">Comprobando sesion...</div>
-<section class="guilds-section" aria-labelledby="guildsTitle">
-<h2 id="guildsTitle">Mis servidores</h2>
-<div id="guildsList" class="guilds-list" aria-live="polite"></div>
+<div class="dashboard-layout">
+<aside class="dashboard-sidebar" id="dashboardSidebar">
+<nav aria-label="Navegacion del dashboard">
+<button class="sidebar-link active" type="button" data-section="overview">▦ <span>Vision General</span></button>
+<button class="sidebar-link" type="button" data-section="welcome">✦ <span>Bienvenidas</span></button>
+<button class="sidebar-link" type="button" data-section="moderation">◆ <span>Moderacion</span></button>
+<button class="sidebar-link" type="button" data-section="logs">≡ <span>Webhooks / Logs</span></button>
+<button class="sidebar-link" type="button" data-section="settings">⚙ <span>Configuracion</span></button>
+</nav>
+</aside>
+
+<main class="dashboard-main">
+<section class="dashboard-view active" data-view="overview">
+<div class="dashboard-heading"><div><p class="eyebrow">Panel de control</p><h1>Vision General</h1></div><button class="mobile-menu-button" id="mobileMenuButton" type="button">☰</button></div>
+<div class="server-banner">
+<div id="bannerGuildIcon" class="banner-guild-icon guild-icon-placeholder">S</div>
+<div><p class="eyebrow">Servidor seleccionado</p><h2 id="bannerGuildName">Seleccionar servidor</h2><p><span id="bannerMemberCount">0</span> miembros</p></div>
+</div>
+<div class="module-grid">
+<article class="module-card"><div><h3>Moderacion automatica</h3><p>Protege el servidor contra spam y contenido no deseado.</p></div><label class="toggle"><input type="checkbox" data-setting="moderation" checked><span></span></label></article>
+<article class="module-card"><div><h3>Mensajes de bienvenida</h3><p>Recibe a los nuevos miembros con un mensaje personalizado.</p></div><label class="toggle"><input type="checkbox" data-setting="welcome" checked><span></span></label></article>
+<article class="module-card"><div><h3>Logs del servidor</h3><p>Registra cambios y eventos importantes de tu comunidad.</p></div><label class="toggle"><input type="checkbox" data-setting="logs"><span></span></label></article>
+<article class="module-card"><div><h3>Roles automaticos</h3><p>Asigna roles a los miembros cuando se unen al servidor.</p></div><label class="toggle"><input type="checkbox" data-setting="roles"><span></span></label></article>
+</div>
 </section>
-<button id="logoutButton" type="button" hidden>Cerrar sesion</button>
-</section>
+<section class="dashboard-view" data-view="welcome"><div class="dashboard-heading"><div><p class="eyebrow">Configuracion</p><h1>Bienvenidas</h1></div></div><div class="empty-view">Configura los mensajes de bienvenida de tu servidor.</div></section>
+<section class="dashboard-view" data-view="moderation"><div class="dashboard-heading"><div><p class="eyebrow">Seguridad</p><h1>Moderacion</h1></div></div><div class="empty-view">Administra las reglas de moderacion automatica.</div></section>
+<section class="dashboard-view" data-view="logs"><div class="dashboard-heading"><div><p class="eyebrow">Actividad</p><h1>Webhooks / Logs</h1></div></div><div class="empty-view">Consulta los eventos recientes de tu servidor.</div></section>
+<section class="dashboard-view" data-view="settings"><div class="dashboard-heading"><div><p class="eyebrow">Preferencias</p><h1>Configuracion</h1></div></div><div class="empty-view">Ajusta las preferencias generales de Sonia Bot.</div></section>
 </main>
+</div>
 <script src="/public/js/dashboard.js"></script>
 </body>
 </html>
