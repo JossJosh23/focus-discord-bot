@@ -81,6 +81,13 @@ app.get("/auth/callback", async (req, res) => {
     if (!userResponse.ok) throw new Error("No se pudo obtener el usuario de Discord");
     const user = await userResponse.json();
 
+    const guildsResponse = await fetch("https://discord.com/api/users/@me/guilds", {
+      headers: { Authorization: `${token.token_type} ${token.access_token}` }
+    });
+
+    if (!guildsResponse.ok) throw new Error("No se pudieron obtener los servidores de Discord");
+    const guilds = await guildsResponse.json();
+
     req.session.user = {
       id: user.id,
       username: user.username,
@@ -88,7 +95,16 @@ app.get("/auth/callback", async (req, res) => {
       avatar: user.avatar,
       avatarUrl: user.avatar
         ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=128`
-        : `https://cdn.discordapp.com/embed/avatars/${Number(BigInt(user.id) % 5n)}.png`
+        : `https://cdn.discordapp.com/embed/avatars/${Number(BigInt(user.id) % 5n)}.png`,
+      guilds: guilds.map((guild) => ({
+        id: guild.id,
+        name: guild.name,
+        iconUrl: guild.icon
+          ? `https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png?size=128`
+          : null,
+        owner: Boolean(guild.owner),
+        permissions: guild.permissions
+      }))
     };
 
     res.redirect("/dashboard/");

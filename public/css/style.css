@@ -657,6 +657,45 @@ object-fit:cover;
 margin:24px auto 8px;
 }
 
+.guilds-section{
+margin-top:32px;
+text-align:left;
+}
+
+.guilds-section h2{
+font-size:1.25rem;
+margin-bottom:16px;
+}
+
+.guilds-list{
+display:grid;
+gap:10px;
+max-height:360px;
+overflow-y:auto;
+}
+
+.guild-item{
+display:flex;
+align-items:center;
+gap:12px;
+padding:12px;
+background:rgba(255,255,255,0.06);
+border:1px solid rgba(255,255,255,0.1);
+border-radius:8px;
+}
+
+.guild-item img{
+width:40px;
+height:40px;
+border-radius:10px;
+object-fit:cover;
+}
+
+.guild-item small{
+margin-left:auto;
+color:#94a3b8;
+}
+
 .status-dot{
 width:10px;
 height:10px;
