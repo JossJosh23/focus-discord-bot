@@ -4,7 +4,7 @@ const BOT_ID = "1540939068693544992";
 const STATUS_URL = "";
 
 const INVITE_URL =
-`https://discord.com/oauth2/authorize?client_id=${BOT_ID}&permissions=268446736&scope=bot%20applications.commands`;
+`https://discord.com/oauth2/authorize?client_id=${1540939068693544992}&permissions=268446736&scope=bot%20applications.commands`;
 
 
 /* BOT INVITE */
