@@ -7,6 +7,29 @@
 <link rel="stylesheet" href="/public/css/style.css">
 </head>
 <body>
+<header class="dashboard-navbar">
+<a class="dashboard-brand" href="/">
+<img src="/public/assets/logo1.png" alt="">
+<span>Sonia Bot</span>
+</a>
+
+<div class="dashboard-actions">
+<div class="server-selector" id="serverSelector">
+<button class="server-selector-button" id="serverSelectorButton" type="button" aria-haspopup="listbox" aria-expanded="false">
+<span id="selectedGuildIcon" class="guild-icon-placeholder" aria-hidden="true">S</span>
+<span id="selectedGuildName">Seleccionar servidor</span>
+<span aria-hidden="true">⌄</span>
+</button>
+<div id="guildsMenu" class="guilds-menu" role="listbox" aria-label="Servidores de Discord" hidden></div>
+</div>
+
+<div class="dashboard-user">
+<img id="navbarUserAvatar" src="https://cdn.discordapp.com/embed/avatars/0.png" alt="">
+<span id="navbarUserName">Usuario</span>
+</div>
+</div>
+</header>
+
 <main class="dashboard-page">
 <section class="dashboard-panel" aria-live="polite">
 <h1>Dashboard de SoniaBot</h1>
@@ -18,72 +41,6 @@
 <button id="logoutButton" type="button" hidden>Cerrar sesion</button>
 </section>
 </main>
-<script>
-const dashboardContent = document.querySelector("#dashboardContent");
-const guildsList = document.querySelector("#guildsList");
-const logoutButton = document.querySelector("#logoutButton");
-
-async function loadDashboard() {
-  try {
-    const response = await fetch("/api/me", { credentials: "same-origin" });
-    if (!response.ok) throw new Error("No autenticado");
-
-    const { user } = await response.json();
-    localStorage.setItem("soniabot.user", JSON.stringify(user));
-    const avatar = document.createElement("img");
-    avatar.className = "dashboard-avatar";
-    avatar.src = user.avatarUrl;
-    avatar.alt = `Avatar de ${user.globalName}`;
-
-    const welcome = document.createElement("p");
-    welcome.textContent = `Bienvenido, ${user.globalName}.`;
-    dashboardContent.replaceChildren(avatar, welcome);
-
-    const guilds = Array.isArray(user.guilds) ? user.guilds : [];
-    guildsList.replaceChildren();
-    if (!guilds.length) {
-      const emptyMessage = document.createElement("p");
-      emptyMessage.textContent = "No perteneces a ningun servidor.";
-      guildsList.append(emptyMessage);
-    } else {
-      guilds.forEach((guild) => {
-        const guildItem = document.createElement("article");
-        guildItem.className = "guild-item";
-
-        if (guild.iconUrl) {
-          const guildIcon = document.createElement("img");
-          guildIcon.src = guild.iconUrl;
-          guildIcon.alt = `Icono de ${guild.name}`;
-          guildItem.append(guildIcon);
-        }
-
-        const guildName = document.createElement("span");
-        guildName.textContent = guild.name;
-        guildItem.append(guildName);
-
-        if (guild.owner) {
-          const ownerLabel = document.createElement("small");
-          ownerLabel.textContent = "Propietario";
-          guildItem.append(ownerLabel);
-        }
-
-        guildsList.append(guildItem);
-      });
-    }
-    logoutButton.hidden = false;
-  } catch {
-    localStorage.removeItem("soniabot.user");
-    window.location.replace("/");
-  }
-}
-
-logoutButton.addEventListener("click", async () => {
-  await fetch("/auth/logout", { method: "POST", credentials: "same-origin" });
-  localStorage.removeItem("soniabot.user");
-  window.location.replace("/");
-});
-
-loadDashboard();
-</script>
+<script src="/public/js/dashboard.js"></script>
 </body>
 </html>
