@@ -1,6 +1,6 @@
-# SoniaBot Web
+# Focus Web
 
-Web de SoniaBot con autenticacion OAuth2 de Discord.
+Web de Focus con autenticacion OAuth2 de Discord.
 
 ## Estructura
 
@@ -60,7 +60,7 @@ Este repositorio no contiene el cliente `discord.js` del bot. Usa `examples/bot-
 1. Copia `examples/bot-events.example.js` al proyecto donde corre tu bot e importa `registerStatsListeners`.
 2. Tras crear e iniciar tu cliente de `discord.js`, ejecuta `registerStatsListeners(client)` una sola vez.
 3. En el `.env` del bot configura `SONIABOT_STATS_API_URL=https://tu-dominio` (sin `/` final) y `SONIABOT_EVENT_INGEST_TOKEN` con el mismo secreto que `EVENT_INGEST_TOKEN` de esta web.
-4. Activa **Server Members Intent** en Discord Developer Portal y añade `GatewayIntentBits.GuildMembers` a los intents del cliente. Sin ese intent Discord no emitira `guildMemberAdd`.
+4. Activa **Server Members Intent** y, si usas el filtro de enlaces o anti-spam, **Message Content Intent** en Discord Developer Portal. Añade `GatewayIntentBits.GuildMembers` y `GatewayIntentBits.MessageContent` a los intents del cliente. Sin ellos Discord no emitirá `guildMemberAdd` ni entregará el contenido de los mensajes.
 5. En el dashboard, abre **Bienvenidas**, activa la opcion, indica preferiblemente el ID del canal, escribe el mensaje y guarda. El bot lee esa configuracion cada vez que entra alguien.
 
 Ejemplo de arranque del bot:

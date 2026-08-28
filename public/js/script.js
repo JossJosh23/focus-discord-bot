@@ -21,7 +21,7 @@ window.open(INVITE_URL,"_blank","noopener,noreferrer")
 const typewriter = document.querySelector(".typewriter");
 
 const text =
-"Mejora tu servidor con TGXBot, un bot con moderación inteligente, niveles y roles automáticos.";
+"Mejora tu servidor con Focus, un bot con moderación inteligente, niveles y roles automáticos.";
 
 let i = 0;
 

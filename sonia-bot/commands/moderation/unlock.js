@@ -16,7 +16,9 @@ module.exports = {
       }
 
       await interaction.channel.permissionOverwrites.edit(interaction.guild.roles.everyone, {
-        SendMessages: true,
+        // Elimina solo la regla creada por /lock y restaura la herencia del canal.
+        // Forzar `true` podría abrir un canal que ya estaba restringido.
+        SendMessages: null,
       });
 
       return interaction.reply({ content: '🔓 Canal desbloqueado para @everyone.', ephemeral: true });

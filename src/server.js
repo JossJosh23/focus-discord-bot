@@ -75,6 +75,7 @@ app.get("/auth/callback", async (req, res) => {
     const tokenResponse = await fetch("https://discord.com/api/oauth2/token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      signal: AbortSignal.timeout(10_000),
       body: new URLSearchParams({
         client_id: process.env.CLIENT_ID,
         client_secret: process.env.CLIENT_SECRET,
@@ -88,14 +89,16 @@ app.get("/auth/callback", async (req, res) => {
     const token = await tokenResponse.json();
 
     const userResponse = await fetch("https://discord.com/api/users/@me", {
-      headers: { Authorization: `${token.token_type} ${token.access_token}` }
+      headers: { Authorization: `${token.token_type} ${token.access_token}` },
+      signal: AbortSignal.timeout(10_000)
     });
 
     if (!userResponse.ok) throw new Error("No se pudo obtener el usuario de Discord");
     const user = await userResponse.json();
 
     const guildsResponse = await fetch("https://discord.com/api/users/@me/guilds?with_counts=true", {
-      headers: { Authorization: `${token.token_type} ${token.access_token}` }
+      headers: { Authorization: `${token.token_type} ${token.access_token}` },
+      signal: AbortSignal.timeout(10_000)
     });
 
     if (!guildsResponse.ok) throw new Error("No se pudieron obtener los servidores de Discord");
@@ -221,6 +224,12 @@ app.get("/api/bot/guilds/:guildId/welcome", requireBotEventToken, (req, res) => 
   res.json({ welcome });
 });
 
+// Configuración completa destinada exclusivamente al proceso del bot. El
+// token de eventos impide que el navegador pueda leer estos datos directamente.
+app.get("/api/bot/guilds/:guildId/settings", requireBotEventToken, (req, res) => {
+  res.json({ settings: getGuildSettings(req.params.guildId) });
+});
+
 app.post("/api/events", (req, res) => {
   if (!isValidBotEventToken(req)) return res.status(401).json({ error: "Token de eventos no valido" });
 
@@ -234,8 +243,12 @@ app.post("/api/events", (req, res) => {
 
 app.post("/api/bot/heartbeat", requireBotEventToken, (req, res) => {
   const { botId, guildCount, uptimeSeconds } = req.body || {};
-  recordBotHeartbeat({ botId, guildCount, uptimeSeconds });
-  res.status(204).end();
+  try {
+    recordBotHeartbeat({ botId, guildCount, uptimeSeconds });
+    res.status(204).end();
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
 });
 
 function isValidBotEventToken(req) {
@@ -252,14 +265,18 @@ async function fetchDiscordGuild(guildId) {
   if (!process.env.DISCORD_BOT_TOKEN) return null;
   const headers = { Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}` };
   const response = await fetch(`https://discord.com/api/v10/guilds/${guildId}?with_counts=true`, {
-    headers
+    headers,
+    signal: AbortSignal.timeout(10_000)
   });
   // El usuario puede administrar un servidor al que el bot aún no fue invitado.
   // En ese caso seguimos mostrando los datos locales disponibles.
   if (response.status === 403 || response.status === 404) return null;
   if (!response.ok) throw new Error(`Discord guild API returned ${response.status}`);
   const guild = await response.json();
-  const rolesResponse = await fetch(`https://discord.com/api/v10/guilds/${guildId}/roles`, { headers });
+  const rolesResponse = await fetch(`https://discord.com/api/v10/guilds/${guildId}/roles`, {
+    headers,
+    signal: AbortSignal.timeout(10_000)
+  });
   if (rolesResponse.status === 403 || rolesResponse.status === 404) return guild;
   if (!rolesResponse.ok) throw new Error(`Discord roles API returned ${rolesResponse.status}`);
   guild.roles = await rolesResponse.json();
@@ -272,9 +289,20 @@ function getDiscordCreationDate(snowflake) {
 }
 
 app.post("/auth/logout", (req, res) => {
-  req.session.destroy(() => res.clearCookie("soniabot.sid").json({ ok: true }));
+  req.session.destroy((error) => {
+    if (error) return res.status(500).json({ error: "No se pudo cerrar la sesión" });
+    return res.clearCookie("soniabot.sid").json({ ok: true });
+  });
+});
+
+app.use((error, _req, res, _next) => {
+  if (error instanceof SyntaxError && "body" in error) {
+    return res.status(400).json({ error: "JSON no válido" });
+  }
+  console.error(error);
+  return res.status(500).json({ error: "Error interno del servidor" });
 });
 
 app.listen(port, "0.0.0.0", () => {
-  console.log(`SoniaBot web disponible en http://0.0.0.0:${port}`);
+  console.log(`Focus web disponible en http://0.0.0.0:${port}`);
 });

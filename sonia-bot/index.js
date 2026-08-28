@@ -24,8 +24,10 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
   ],
 });
+const rest = new REST({ version: '10' }).setToken(DISCORD_TOKEN);
 
 registerDashboardListeners(client);
 
@@ -56,21 +58,18 @@ function loadCommands(directory) {
 
 loadCommands(path.join(__dirname, 'commands'));
 
+async function registerGuildCommands(guild) {
+  const commandData = client.commands.map((command) => command.data.toJSON());
+  await rest.put(Routes.applicationGuildCommands(CLIENT_ID, guild.id), { body: commandData });
+}
+
 client.once(Events.ClientReady, async (readyClient) => {
   try {
-    const rest = new REST({ version: '10' }).setToken(DISCORD_TOKEN);
-    const commandData = client.commands.map((command) => command.data.toJSON());
-
-    await rest.put(Routes.applicationCommands(CLIENT_ID), { body: [] });
     await Promise.all(
-      readyClient.guilds.cache.map((guild) =>
-        rest.put(Routes.applicationGuildCommands(CLIENT_ID, guild.id), {
-          body: commandData,
-        })
-      )
+      readyClient.guilds.cache.map((guild) => registerGuildCommands(guild))
     );
 
-    console.log(`Sonia está conectada como ${readyClient.user.tag}`);
+    console.log(`Focus está conectada como ${readyClient.user.tag}`);
     console.log(`${client.commands.size} comando(s) registrado(s) en ${readyClient.guilds.cache.size} servidor(es).`);
   } catch (error) {
     console.error('No se pudieron registrar los comandos:', error);
@@ -117,4 +116,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
 client.login(DISCORD_TOKEN).catch((error) => {
   console.error('No se pudo iniciar sesión en Discord:', error.message);
   process.exit(1);
+});
+
+client.on(Events.GuildCreate, (guild) => {
+  registerGuildCommands(guild).catch((error) => {
+    console.error(`No se pudieron registrar los comandos en ${guild.id}:`, error);
+  });
 });

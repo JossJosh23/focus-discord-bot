@@ -3,10 +3,18 @@ const path = require('node:path');
 const { EmbedBuilder, PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
 
 const warningsFile = path.join(__dirname, '../../data/warnings.json');
-const warnings = new Map(Object.entries(JSON.parse(fs.readFileSync(warningsFile, 'utf8'))));
+let warningData = {};
+try {
+  warningData = JSON.parse(fs.readFileSync(warningsFile, 'utf8'));
+} catch (error) {
+  if (error.code !== 'ENOENT') console.error('No se pudieron cargar las advertencias:', error);
+}
+const warnings = new Map(Object.entries(warningData));
 
 function saveWarnings() {
-  fs.writeFileSync(warningsFile, JSON.stringify(Object.fromEntries(warnings), null, 2));
+  const temporaryFile = `${warningsFile}.tmp`;
+  fs.writeFileSync(temporaryFile, JSON.stringify(Object.fromEntries(warnings), null, 2));
+  fs.renameSync(temporaryFile, warningsFile);
 }
 
 module.exports = {
@@ -39,7 +47,8 @@ module.exports = {
       }
 
       const key = `${interaction.guildId}:${targetUser.id}`;
-      const userWarnings = warnings.get(key) || [];
+      const storedWarnings = warnings.get(key);
+      const userWarnings = Array.isArray(storedWarnings) ? storedWarnings : [];
       userWarnings.push({ reason, moderatorId: interaction.user.id, createdAt: new Date().toISOString() });
       warnings.set(key, userWarnings);
       saveWarnings();

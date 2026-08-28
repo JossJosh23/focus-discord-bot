@@ -17,7 +17,7 @@ const mockUser = {
     },
     {
       id: "mock-soniabot-support",
-      name: "SoniaBot Support",
+      name: "Focus Support",
       iconUrl: null,
       memberCount: 64,
       owner: false,
@@ -107,7 +107,7 @@ function defaultConfiguration() {
     welcome: { enabled: true, channel: "general", message: "Bienvenido {user} a {server}!" },
     moderation: { enabled: true, antiSpam: true, filterLinks: false, warnLimit: 3 },
     roles: { enabled: false, defaultRole: "Miembro" },
-    automation: { logs: false, joinMessage: true },
+    automation: { logs: true, joinMessage: true },
     profile: { description: "", invite: "" }
   };
 }
@@ -157,7 +157,7 @@ function renderManagementViews() {
   viewContent("automation", `<div class="dashboard-heading"><div><p class="eyebrow">Flujos</p><h1>Automatizaciones</h1></div></div><form class="settings-panel" data-settings-form="automation"><label class="form-switch"><span>Registrar logs del servidor</span><input name="logs" type="checkbox" ${c.automation.logs ? "checked" : ""}></label><label class="form-switch"><span>Mensaje al unirse un miembro</span><input name="joinMessage" type="checkbox" ${c.automation.joinMessage ? "checked" : ""}></label><button class="primary-button">Guardar automatizaciones</button></form>`);
   viewContent("settings", `<div class="dashboard-heading"><div><p class="eyebrow">Preferencias</p><h1>Perfil del servidor</h1></div></div><form class="settings-panel" data-settings-form="profile"><label><span>Descripcion</span><textarea name="description" rows="3" placeholder="Describe tu comunidad">${escapeHtml(c.profile.description)}</textarea></label><label><span>Invitacion de Discord</span><input name="invite" value="${escapeHtml(c.profile.invite)}" placeholder="https://discord.gg/..." type="url"></label><button class="primary-button">Guardar perfil</button></form>`);
   viewContent("api", `<div class="dashboard-heading"><div><p class="eyebrow">Documentacion</p><h1>API y eventos</h1><p class="dashboard-subtitle">Conecta tu bot para ver actividad real en este panel.</p></div></div><div class="docs-grid"><article><h3>Registrar evento</h3><code>POST /api/events</code><p>Incluye el encabezado <code>x-event-token</code> y los campos guildId y eventType.</p></article><article><h3>Eventos disponibles</h3><p>message, member_join, member_leave, moderation y warn.</p></article><article><h3>Configuracion</h3><code>PUT /api/guilds/:id/settings</code><p>Disponible para administradores autenticados.</p></article></div>`);
-  viewContent("premium", `<div class="dashboard-heading"><div><p class="eyebrow">SoniaBot</p><h1>Premium</h1><p class="dashboard-subtitle">Planes para comunidades que necesitan mas automatizacion.</p></div></div><div class="docs-grid plans-grid"><article><h3>Gratis</h3><p>Moderacion y bienvenida esenciales.</p><strong>$0 / mes</strong></article><article class="featured-plan"><h3>Premium</h3><p>Logs avanzados, automatizaciones y soporte prioritario.</p><strong>$4.99 / mes</strong></article><article><h3>Comunidades</h3><p>Funciones a medida para servidores grandes.</p><strong>Contactanos</strong></article></div>`);
+  viewContent("premium", `<div class="dashboard-heading"><div><p class="eyebrow">Focus</p><h1>Premium</h1><p class="dashboard-subtitle">Planes para comunidades que necesitan mas automatizacion.</p></div></div><div class="docs-grid plans-grid"><article><h3>Gratis</h3><p>Moderacion y bienvenida esenciales.</p><strong>$0 / mes</strong></article><article class="featured-plan"><h3>Premium</h3><p>Logs avanzados, automatizaciones y soporte prioritario.</p><strong>$4.99 / mes</strong></article><article><h3>Comunidades</h3><p>Funciones a medida para servidores grandes.</p><strong>Contactanos</strong></article></div>`);
   bindSettingsForms();
 }
 
@@ -184,7 +184,7 @@ async function loadActivity(guildId) {
       if (response.ok) activity = (await response.json()).activity;
     }
     const max = Math.max(1, ...activity.map((day) => Number(day.messages) + Number(day.joins) + Number(day.moderation)));
-    const bars = activity.length ? activity.map((day) => `<div class="activity-bar" title="${escapeHtml(day.date)}"><span style="height:${Math.max(8, ((Number(day.messages) + Number(day.joins) + Number(day.moderation)) / max) * 100)}%"></span><small>${day.date.slice(5)}</small></div>`).join("") : `<p class="empty-state">Aun no hay eventos. Conecta el endpoint de eventos de SoniaBot para llenar este grafico.</p>`;
+    const bars = activity.length ? activity.map((day) => `<div class="activity-bar" title="${escapeHtml(day.date)}"><span style="height:${Math.max(8, ((Number(day.messages) + Number(day.joins) + Number(day.moderation)) / max) * 100)}%"></span><small>${day.date.slice(5)}</small></div>`).join("") : `<p class="empty-state">Aun no hay eventos. Conecta el endpoint de eventos de Focus para llenar este grafico.</p>`;
     target.innerHTML = `<div class="dashboard-heading"><div><p class="eyebrow">Actividad</p><h1>Webhooks y logs</h1><p class="dashboard-subtitle">Actividad de los ultimos 7 dias.</p></div></div><div class="activity-card"><div class="activity-chart">${bars}</div></div>`;
   } catch { /* The view stays available even if activity cannot be fetched. */ }
 }
@@ -372,7 +372,7 @@ function renderUser(user) {
   navbarUserName.textContent = displayName;
   welcomeName.textContent = displayName;
 
-  document.title = `${displayName} | SoniaBot`;
+  document.title = `${displayName} | Focus`;
 }
 
 function setupNavigation() {

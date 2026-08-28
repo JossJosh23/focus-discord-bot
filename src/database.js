@@ -2,6 +2,7 @@ const Database = require("better-sqlite3");
 
 const database = new Database(process.env.DATABASE_PATH || "soniabot.sqlite");
 database.pragma("journal_mode = WAL");
+database.pragma("foreign_keys = ON");
 database.exec(`
   CREATE TABLE IF NOT EXISTS guild_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -30,22 +31,92 @@ const insertEvent = database.prepare(`
   VALUES (@guildId, @eventType, @metadata)
 `);
 
+const EVENT_TYPES = new Set(["message", "moderation", "warn", "member_join", "member_leave"]);
+const DEFAULT_SETTINGS = Object.freeze({
+  welcome: { enabled: true, channel: "general", message: "Bienvenido {user} a {server}!" },
+  moderation: { enabled: true, antiSpam: true, filterLinks: false, warnLimit: 3 },
+  roles: { enabled: false, defaultRole: "Miembro" },
+  automation: { logs: true, joinMessage: true },
+  profile: { description: "", invite: "" }
+});
+
+function isPlainObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function requiredString(value, field, maxLength) {
+  if (typeof value !== "string" || !value.trim() || value.length > maxLength) {
+    throw new Error(`${field} no válido`);
+  }
+  return value.trim();
+}
+
+function optionalString(value, fallback, maxLength) {
+  return typeof value === "string" ? value.trim().slice(0, maxLength) : fallback;
+}
+
+function normalizeSettings(settings) {
+  if (!isPlainObject(settings)) throw new Error("Configuración no válida");
+
+  const welcome = isPlainObject(settings.welcome) ? settings.welcome : {};
+  const moderation = isPlainObject(settings.moderation) ? settings.moderation : {};
+  const roles = isPlainObject(settings.roles) ? settings.roles : {};
+  const automation = isPlainObject(settings.automation) ? settings.automation : {};
+  const profile = isPlainObject(settings.profile) ? settings.profile : {};
+  const warnLimit = Number(moderation.warnLimit);
+
+  return {
+    welcome: {
+      enabled: typeof welcome.enabled === "boolean" ? welcome.enabled : DEFAULT_SETTINGS.welcome.enabled,
+      channel: optionalString(welcome.channel, DEFAULT_SETTINGS.welcome.channel, 100),
+      message: optionalString(welcome.message, DEFAULT_SETTINGS.welcome.message, 1_700)
+    },
+    moderation: {
+      enabled: typeof moderation.enabled === "boolean" ? moderation.enabled : DEFAULT_SETTINGS.moderation.enabled,
+      antiSpam: typeof moderation.antiSpam === "boolean" ? moderation.antiSpam : DEFAULT_SETTINGS.moderation.antiSpam,
+      filterLinks: typeof moderation.filterLinks === "boolean" ? moderation.filterLinks : DEFAULT_SETTINGS.moderation.filterLinks,
+      warnLimit: Number.isInteger(warnLimit) && warnLimit >= 1 && warnLimit <= 20 ? warnLimit : DEFAULT_SETTINGS.moderation.warnLimit
+    },
+    roles: {
+      enabled: typeof roles.enabled === "boolean" ? roles.enabled : DEFAULT_SETTINGS.roles.enabled,
+      defaultRole: optionalString(roles.defaultRole, DEFAULT_SETTINGS.roles.defaultRole, 100)
+    },
+    automation: {
+      logs: typeof automation.logs === "boolean" ? automation.logs : DEFAULT_SETTINGS.automation.logs,
+      joinMessage: typeof automation.joinMessage === "boolean" ? automation.joinMessage : DEFAULT_SETTINGS.automation.joinMessage
+    },
+    profile: {
+      description: optionalString(profile.description, DEFAULT_SETTINGS.profile.description, 500),
+      invite: optionalString(profile.invite, DEFAULT_SETTINGS.profile.invite, 200)
+    }
+  };
+}
+
 function recordEvent({ guildId, eventType, metadata = null, createdAt = null }) {
-  if (!guildId || !["message", "moderation", "warn", "member_join", "member_leave"].includes(eventType)) {
-    throw new Error("guildId o eventType no valido");
+  const normalizedGuildId = requiredString(guildId, "guildId", 32);
+  if (!EVENT_TYPES.has(eventType)) throw new Error("eventType no válido");
+
+  let serializedMetadata = null;
+  if (metadata !== null) {
+    if (!isPlainObject(metadata)) throw new Error("metadata no válida");
+    serializedMetadata = JSON.stringify(metadata);
+    if (serializedMetadata.length > 16_000) throw new Error("metadata excede el tamaño permitido");
   }
 
   if (createdAt) {
+    if (typeof createdAt !== "string" || Number.isNaN(Date.parse(createdAt))) {
+      throw new Error("createdAt no válido");
+    }
     return database.prepare(`
       INSERT INTO guild_events (guild_id, event_type, created_at, metadata)
       VALUES (?, ?, ?, ?)
-    `).run(guildId, eventType, createdAt, metadata ? JSON.stringify(metadata) : null);
+    `).run(normalizedGuildId, eventType, new Date(createdAt).toISOString(), serializedMetadata);
   }
 
   return insertEvent.run({
-    guildId,
+    guildId: normalizedGuildId,
     eventType,
-    metadata: metadata ? JSON.stringify(metadata) : null
+    metadata: serializedMetadata
   });
 }
 
@@ -104,34 +175,20 @@ function getGuildStats(guildId) {
 
 function getGuildSettings(guildId) {
   const row = database.prepare("SELECT settings FROM guild_settings WHERE guild_id = ?").get(guildId);
-  const defaults = {
-    welcome: { enabled: true, channel: "general", message: "¡Bienvenido {user} a {server}!" },
-    moderation: { enabled: true, antiSpam: true, filterLinks: false, warnLimit: 3 },
-    roles: { enabled: false, defaultRole: "Miembro" },
-    automation: { logs: false, joinMessage: true },
-    profile: { description: "", invite: "" }
-  };
-  if (!row) return defaults;
+  if (!row) return normalizeSettings({});
   try {
-    const saved = JSON.parse(row.settings);
-    return {
-      ...defaults,
-      ...saved,
-      welcome: { ...defaults.welcome, ...saved.welcome },
-      moderation: { ...defaults.moderation, ...saved.moderation },
-      roles: { ...defaults.roles, ...saved.roles },
-      automation: { ...defaults.automation, ...saved.automation },
-      profile: { ...defaults.profile, ...saved.profile }
-    };
-  } catch { return defaults; }
+    return normalizeSettings(JSON.parse(row.settings));
+  } catch { return normalizeSettings({}); }
 }
 
 function saveGuildSettings(guildId, settings) {
+  const normalizedGuildId = requiredString(guildId, "guildId", 32);
+  const normalizedSettings = normalizeSettings(settings);
   database.prepare(`
     INSERT INTO guild_settings (guild_id, settings, updated_at) VALUES (?, ?, datetime('now'))
     ON CONFLICT(guild_id) DO UPDATE SET settings = excluded.settings, updated_at = datetime('now')
-  `).run(guildId, JSON.stringify(settings));
-  return getGuildSettings(guildId);
+  `).run(normalizedGuildId, JSON.stringify(normalizedSettings));
+  return normalizedSettings;
 }
 
 function getGuildActivity(guildId) {
@@ -145,7 +202,10 @@ function getGuildActivity(guildId) {
   `).all(guildId);
 }
 
-function recordBotHeartbeat({ botId = "soniabot", guildCount = 0, uptimeSeconds = 0 }) {
+function recordBotHeartbeat({ botId = "focus", guildCount = 0, uptimeSeconds = 0 }) {
+  const normalizedBotId = requiredString(String(botId), "botId", 100);
+  const normalizedGuildCount = Math.max(0, Math.floor(Number(guildCount) || 0));
+  const normalizedUptime = Math.max(0, Math.floor(Number(uptimeSeconds) || 0));
   database.prepare(`
     INSERT INTO bot_heartbeats (bot_id, guild_count, uptime_seconds, updated_at)
     VALUES (?, ?, ?, datetime('now'))
@@ -153,10 +213,10 @@ function recordBotHeartbeat({ botId = "soniabot", guildCount = 0, uptimeSeconds 
       guild_count = excluded.guild_count,
       uptime_seconds = excluded.uptime_seconds,
       updated_at = datetime('now')
-  `).run(String(botId), Number(guildCount) || 0, Number(uptimeSeconds) || 0);
+  `).run(normalizedBotId, normalizedGuildCount, normalizedUptime);
 }
 
-function getBotStatus(botId = "soniabot") {
+function getBotStatus(botId = "focus") {
   const heartbeat = database.prepare(`
     SELECT guild_count, uptime_seconds, updated_at,
       CAST((julianday('now') - julianday(updated_at)) * 86400 AS INTEGER) AS seconds_since_heartbeat

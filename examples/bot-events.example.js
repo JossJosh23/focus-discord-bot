@@ -10,7 +10,8 @@ async function recordGuildEvent(guildId, eventType, metadata = {}) {
       "Content-Type": "application/json",
       "x-event-token": eventToken
     },
-    body: JSON.stringify({ guildId, eventType, metadata })
+    body: JSON.stringify({ guildId, eventType, metadata }),
+    signal: AbortSignal.timeout(10_000)
   });
 
   if (!response.ok) {
@@ -22,27 +23,33 @@ async function getWelcomeSettings(guildId) {
   if (!statsApiUrl || !eventToken) return null;
 
   const response = await fetch(`${statsApiUrl}/api/bot/guilds/${guildId}/welcome`, {
-    headers: { "x-event-token": eventToken }
+    headers: { "x-event-token": eventToken },
+    signal: AbortSignal.timeout(10_000)
   });
 
   if (!response.ok) throw new Error(`Welcome settings API returned ${response.status}`);
   return (await response.json()).welcome;
 }
 
-function findWelcomeChannel(guild, configuredChannel) {
+async function findWelcomeChannel(guild, configuredChannel) {
   const channelKey = String(configuredChannel || "").trim();
   if (!channelKey) return null;
 
   // El panel acepta el ID del canal (recomendado) o su nombre exacto.
-  return guild.channels.cache.get(channelKey)
+  const cachedChannel = guild.channels.cache.get(channelKey)
     || guild.channels.cache.find((channel) => channel.name === channelKey && channel.isTextBased());
+  if (cachedChannel) return cachedChannel;
+
+  return /^\d{17,20}$/.test(channelKey)
+    ? guild.channels.fetch(channelKey).catch(() => null)
+    : null;
 }
 
 async function sendWelcome(member) {
   const welcome = await getWelcomeSettings(member.guild.id);
   if (!welcome?.enabled) return;
 
-  const channel = findWelcomeChannel(member.guild, welcome.channel);
+  const channel = await findWelcomeChannel(member.guild, welcome.channel);
   if (!channel?.isTextBased()) {
     throw new Error(`No se encontro el canal de bienvenida "${welcome.channel}" en ${member.guild.id}`);
   }
@@ -51,7 +58,7 @@ async function sendWelcome(member) {
     .replaceAll("{user}", `<@${member.id}>`)
     .replaceAll("{server}", member.guild.name);
 
-  await channel.send({ content: message, allowedMentions: { users: [member.id] } });
+  await channel.send({ content: message.slice(0, 2_000), allowedMentions: { users: [member.id] } });
 }
 
 function registerStatsListeners(client) {

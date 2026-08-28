@@ -1,8 +1,8 @@
 {
-  "name": "sonia-bot-web",
+  "name": "focus-bot-web",
   "version": "1.0.0",
   "private": true,
-  "description": "Web de SoniaBot con autenticacion OAuth2 de Discord",
+  "description": "Web de Focus con autenticacion OAuth2 de Discord",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js"
