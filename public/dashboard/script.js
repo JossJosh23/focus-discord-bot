@@ -101,17 +101,17 @@ function inviteBot(guild) {
   const params = new URLSearchParams({
     client_id: "1540939068693544992",
     scope: "bot applications.commands",
-    permissions: "1099780156438",
+    permissions: "1099847265302",
     guild_id: guild.id,
     disable_guild_select: "true"
   });
   window.location.assign(`https://discord.com/oauth2/authorize?${params}`);
 }
 
-function renderDevelopers(users = [], panels = ["overview", "welcome"]) {
+function renderDevelopers(users = [], panels = ["overview", "customizer", "welcome"]) {
   const target = document.querySelector("#developersContent");
   if (!target) return;
-  const panelLabels = { overview: "Visión general", welcome: "Bienvenidas" };
+  const panelLabels = { overview: "Visión general", customizer: "Personalizador", welcome: "Bienvenidas" };
   target.innerHTML = `<div class="developer-access-panel"><form id="developerForm" class="developer-form"><div><p class="eyebrow">Nuevo acceso</p><h2>Invitar desarrollador</h2><p>Usa su ID de Discord. Podrás modificarlo más tarde.</p></div><label>Nombre de referencia<input name="displayName" maxlength="80" placeholder="Ej. Moderador técnico"></label><label>ID de Discord<input name="discordId" inputmode="numeric" pattern="\\d{17,20}" required placeholder="123456789012345678"></label><fieldset><legend>Paneles permitidos</legend>${panels.map((panel) => `<label class="developer-check"><input type="checkbox" name="panels" value="${panel}"><span>${panelLabels[panel] || panel}</span></label>`).join("")}</fieldset><button class="primary-button" type="submit">Guardar acceso</button><button class="developer-cancel" type="button" hidden>Cancelar edición</button></form><div class="developer-list"><div class="developer-list-head"><div><p class="eyebrow">Accesos activos</p><h2>Equipo autorizado</h2></div><span>${users.length} usuario${users.length === 1 ? "" : "s"}</span></div>${users.length ? users.map((user) => `<article class="developer-user" data-developer-id="${user.discordId}"><div class="developer-avatar">${escapeHtml((user.displayName || "D").charAt(0).toUpperCase())}</div><div><strong>${escapeHtml(user.displayName || "Sin nombre")}</strong><code>${user.discordId}</code></div><div class="developer-panels">${user.panels.length ? user.panels.map((panel) => `<span>${panelLabels[panel] || panel}</span>`).join("") : "<small>Sin paneles</small>"}</div><button type="button" class="developer-edit">Editar</button><button type="button" class="developer-remove">Quitar</button></article>`).join("") : "<p class=\"developer-empty\">Aún no has autorizado a nadie.</p>"}</div></div>`;
 
   const form = target.querySelector("#developerForm");
@@ -202,6 +202,7 @@ function selectGuild(guild) {
 
 function defaultConfiguration() {
   return {
+    customizer: { nickname: "Focus", avatarUrl: "", bannerUrl: "", accentColor: "#5865F2" },
     welcome: { enabled: true, channel: "general", message: "Bienvenido {user} a {server}!", format: "text" },
     moderation: { enabled: true, antiSpam: true, filterLinks: false, warnLimit: 3 },
     roles: { enabled: false, defaultRole: "Miembro" },
@@ -249,8 +250,9 @@ async function saveGuildConfiguration() {
     method: "PUT", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(guildConfiguration)
   });
   if (!response.ok) throw new Error("No se pudieron guardar los cambios");
-  guildConfiguration = (await response.json()).settings;
-  showToast("Cambios guardados");
+  const result = await response.json();
+  guildConfiguration = result.settings;
+  showToast(result.nicknameSynced === false ? "Configuración guardada; Discord no pudo actualizar el apodo" : "Cambios guardados");
 }
 
 function viewContent(view, content) {
@@ -260,6 +262,8 @@ function viewContent(view, content) {
 
 function renderManagementViews() {
   const c = guildConfiguration || defaultConfiguration();
+  const customizer = c.customizer || defaultConfiguration().customizer;
+  viewContent("customizer", `<section class="customizer-workspace"><div class="dashboard-heading"><div><p class="eyebrow">Identidad por servidor</p><h1>Personalizador de Focus</h1><p class="dashboard-subtitle">Personaliza cómo se presenta Focus en ${escapeHtml(selectedGuildName.textContent)} sin afectar otros servidores.</p></div></div><form class="customizer-card" data-settings-form="customizer"><div class="customizer-fields"><label><span>Apodo del bot</span><input name="nickname" maxlength="32" value="${escapeHtml(customizer.nickname)}" placeholder="Focus"></label><label><span>URL de avatar para mensajes</span><input name="avatarUrl" type="url" value="${escapeHtml(customizer.avatarUrl)}" placeholder="https://ejemplo.com/avatar.png"></label><label><span>URL de banner para bienvenidas</span><input name="bannerUrl" type="url" value="${escapeHtml(customizer.bannerUrl)}" placeholder="https://ejemplo.com/banner.png"></label><label><span>Color de identidad</span><input name="accentColor" type="color" value="${escapeHtml(customizer.accentColor)}"></label><p class="customizer-note">El apodo se aplica realmente en Discord. Avatar, banner y color se usan en los mensajes y vistas de esta comunidad porque Discord no permite cambiarlos por servidor.</p><button class="primary-button">Guardar personalización</button></div><aside class="customizer-preview" style="--customizer-accent:${escapeHtml(customizer.accentColor)}"><div class="customizer-preview-banner">${customizer.bannerUrl ? `<img src="${escapeHtml(customizer.bannerUrl)}" alt="Banner personalizado">` : ""}</div><div class="customizer-preview-profile">${customizer.avatarUrl ? `<img src="${escapeHtml(customizer.avatarUrl)}" alt="Avatar personalizado">` : `<span>F</span>`}<div><strong>${escapeHtml(customizer.nickname || "Focus")} <small>APP</small></strong><p>${escapeHtml(selectedGuildName.textContent)}</p></div></div><div class="customizer-preview-message">¡Hola! Esta es la identidad de Focus para este servidor.</div></aside></form></section>`);
   viewContent("welcome", `<section class="welcome-message-workspace"><div class="welcome-workspace-heading"><div><p class="eyebrow">Comunidad</p><h1>Bienvenidas</h1><p>Da una primera impresión increíble a cada miembro que se une a tu servidor.</p></div><span class="welcome-live-badge"><i></i> Configuración en vivo</span></div><form class="welcome-message-card" data-settings-form="community"><div class="welcome-message-card-header"><div><h2>Enviar un mensaje cuando un usuario se une al servidor</h2><p>Focus publicará el mensaje en el canal que selecciones.</p></div><label class="focus-switch" aria-label="Activar mensaje de bienvenida"><input data-config="welcome.enabled" type="checkbox" ${c.welcome.enabled ? "checked" : ""}><i></i></label></div><div class="welcome-card-divider"></div><div class="welcome-channel-field"><label><span>Canal de mensajes de bienvenida <b>*</b></span><input data-config="welcome.channel" value="${escapeHtml(c.welcome.channel)}" placeholder="Selecciona un canal"></label><small>Selecciona uno de los canales de texto disponibles en tu servidor.</small></div><div class="welcome-message-layout"><div><div class="message-mode-tabs"><button type="button" class="active">Mensaje de texto</button><span>Entrega automática</span></div><label class="welcome-composer"><textarea data-config="welcome.message" rows="6" maxlength="1700" placeholder="Escribe un mensaje de bienvenida...">${escapeHtml(c.welcome.message)}</textarea><small><span>Variables: <code>{user}</code> y <code>{server}</code></span><b id="welcomeMessageCount">${c.welcome.message.length} / 1700</b></small></label></div><aside class="welcome-preview"><p>VISTA PREVIA</p><div class="welcome-preview-message"><span class="preview-bot-avatar">F</span><div><strong>Focus <small>BOT</small></strong><p id="welcomePreviewMessage">${escapeHtml(c.welcome.message).replaceAll("{user}", "@nuevo-miembro").replaceAll("{server}", escapeHtml(selectedGuildName.textContent))}</p></div></div></aside></div><div class="welcome-card-footer"><span>Los cambios se sincronizan con Focus en menos de un minuto.</span><button class="primary-button">Guardar cambios</button></div></form></section>`);
   viewContent("moderation", `<div class="dashboard-heading"><div><p class="eyebrow">Seguridad</p><h1>Moderacion</h1><p class="dashboard-subtitle">Define reglas automaticas para proteger tu comunidad.</p></div></div><form class="settings-panel" data-settings-form="moderation"><label class="form-switch"><span>Moderacion automatica</span><input name="enabled" type="checkbox" ${c.moderation.enabled ? "checked" : ""}></label><label class="form-switch"><span>Detectar spam</span><input name="antiSpam" type="checkbox" ${c.moderation.antiSpam ? "checked" : ""}></label><label class="form-switch"><span>Filtrar enlaces sospechosos</span><input name="filterLinks" type="checkbox" ${c.moderation.filterLinks ? "checked" : ""}></label><label><span>Limite de advertencias</span><input name="warnLimit" type="number" min="1" max="20" value="${c.moderation.warnLimit}"></label><button class="primary-button">Guardar reglas</button></form>`);
   viewContent("roles", `<div class="dashboard-heading"><div><p class="eyebrow">Comunidad</p><h1>Roles automaticos</h1></div></div><form class="settings-panel" data-settings-form="roles"><label><span>Rol predeterminado</span><input name="defaultRole" value="${escapeHtml(c.roles.defaultRole)}" placeholder="Miembro"></label><label class="form-switch"><span>Asignar rol al entrar</span><input name="enabled" type="checkbox" ${c.roles.enabled ? "checked" : ""}></label><button class="primary-button">Guardar roles</button></form>`);
@@ -268,8 +272,31 @@ function renderManagementViews() {
   viewContent("api", `<div class="dashboard-heading"><div><p class="eyebrow">Documentacion</p><h1>API y eventos</h1><p class="dashboard-subtitle">Conecta tu bot para ver actividad real en este panel.</p></div></div><div class="docs-grid"><article><h3>Registrar evento</h3><code>POST /api/events</code><p>Incluye el encabezado <code>x-event-token</code> y los campos guildId y eventType.</p></article><article><h3>Eventos disponibles</h3><p>message, member_join, member_leave, moderation y warn.</p></article><article><h3>Configuracion</h3><code>PUT /api/guilds/:id/settings</code><p>Disponible para administradores autenticados.</p></article></div>`);
   viewContent("premium", `<div class="dashboard-heading"><div><p class="eyebrow">Focus</p><h1>Premium</h1><p class="dashboard-subtitle">Planes para comunidades que necesitan mas automatizacion.</p></div></div><div class="docs-grid plans-grid"><article><h3>Gratis</h3><p>Moderacion y bienvenida esenciales.</p><strong>$0 / mes</strong></article><article class="featured-plan"><h3>Premium</h3><p>Logs avanzados, automatizaciones y soporte prioritario.</p><strong>$4.99 / mes</strong></article><article><h3>Comunidades</h3><p>Funciones a medida para servidores grandes.</p><strong>Contactanos</strong></article></div>`);
   renderWelcomeChannelSelector(c.welcome.channel);
+  bindCustomizerPreview();
   bindWelcomePreview();
   bindSettingsForms();
+}
+
+function bindCustomizerPreview() {
+  const form = document.querySelector('[data-view="customizer"] [data-settings-form="customizer"]');
+  if (!form) return;
+  const preview = form.querySelector(".customizer-preview");
+  const banner = form.querySelector(".customizer-preview-banner");
+  const profile = form.querySelector(".customizer-preview-profile");
+  const update = () => {
+    const nickname = form.elements.nickname.value.trim() || "Focus";
+    const avatarUrl = form.elements.avatarUrl.value.trim();
+    const bannerUrl = form.elements.bannerUrl.value.trim();
+    preview.style.setProperty("--customizer-accent", form.elements.accentColor.value);
+    profile.querySelector("strong").firstChild.textContent = `${nickname} `;
+    const currentAvatar = profile.firstElementChild;
+    const nextAvatar = avatarUrl ? document.createElement("img") : document.createElement("span");
+    if (avatarUrl) { nextAvatar.src = avatarUrl; nextAvatar.alt = "Avatar personalizado"; } else { nextAvatar.textContent = "F"; }
+    currentAvatar.replaceWith(nextAvatar);
+    banner.replaceChildren();
+    if (bannerUrl) { const image = document.createElement("img"); image.src = bannerUrl; image.alt = "Banner personalizado"; banner.append(image); }
+  };
+  form.querySelectorAll("input").forEach((input) => input.addEventListener("input", update));
 }
 
 function renderWelcomeChannelSelector(selectedChannel) {

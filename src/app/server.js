@@ -172,6 +172,16 @@ function requireDashboardPanel(panel) {
   };
 }
 
+function requireDashboardAnyPanel(panels) {
+  return async (req, res, next) => {
+    if (!req.session.user) return res.status(401).json({ authenticated: false });
+    const access = await getDashboardAccess(req.session.user.id);
+    if (!panels.some((panel) => access.panels.includes(panel))) return res.status(403).json({ error: "No tienes acceso a esta configuración" });
+    req.dashboardAccess = access;
+    next();
+  };
+}
+
 async function requireOwner(req, res, next) {
   if (!req.session.user) return res.status(401).json({ authenticated: false });
   const access = await getDashboardAccess(req.session.user.id);
@@ -255,7 +265,7 @@ function requireManagedGuild(req, res, next) {
   next();
 }
 
-app.get("/api/guilds/:guildId/settings", requireDashboardPanel("welcome"), requireManagedGuild, async (req, res) => {
+app.get("/api/guilds/:guildId/settings", requireDashboardAnyPanel(["customizer", "welcome"]), requireManagedGuild, async (req, res) => {
   const settings = await getGuildSettings(req.params.guildId);
   if (!process.env.DISCORD_BOT_TOKEN) {
     return res.json({
@@ -284,11 +294,22 @@ app.get("/api/guilds/:guildId/settings", requireDashboardPanel("welcome"), requi
   }
 });
 
-app.put("/api/guilds/:guildId/settings", requireDashboardPanel("welcome"), requireManagedGuild, async (req, res) => {
+app.put("/api/guilds/:guildId/settings", requireDashboardAnyPanel(["customizer", "welcome"]), requireManagedGuild, async (req, res) => {
   if (!req.body || typeof req.body !== "object" || Array.isArray(req.body)) {
     return res.status(400).json({ error: "Configuración no válida" });
   }
-  res.json({ settings: await saveGuildSettings(req.params.guildId, req.body) });
+  const settings = await saveGuildSettings(req.params.guildId, req.body);
+  let nicknameSynced = false;
+  if (process.env.DISCORD_BOT_TOKEN) {
+    const response = await fetch(`https://discord.com/api/v10/guilds/${req.params.guildId}/members/@me`, {
+      method: "PATCH",
+      headers: { Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ nick: settings.customizer.nickname || null }),
+      signal: AbortSignal.timeout(10_000)
+    });
+    nicknameSynced = response.ok;
+  }
+  res.json({ settings, nicknameSynced });
 });
 
 app.get("/api/guilds/:guildId/activity", requireDashboardPanel("overview"), requireManagedGuild, async (req, res) => {

@@ -76,11 +76,17 @@ async function sendWelcome(member, settings) {
     .replaceAll("{server}", member.guild.name);
 
   if (welcome.format === "embed") {
+    const customizer = settings.customizer || {};
+    const accentColor = /^#[0-9a-f]{6}$/i.test(customizer.accentColor || "")
+      ? Number.parseInt(customizer.accentColor.slice(1), 16)
+      : 0x008CFF;
     const embed = new EmbedBuilder()
-      .setColor(0x008CFF)
+      .setColor(accentColor)
       .setDescription(content.slice(0, 4_096))
       .setFooter({ text: `Focus • ${member.guild.name}` })
       .setTimestamp();
+    if (customizer.avatarUrl) embed.setThumbnail(customizer.avatarUrl);
+    if (customizer.bannerUrl) embed.setImage(customizer.bannerUrl);
     await channel.send({ embeds: [embed], allowedMentions: { users: [member.id] } });
     return;
   }

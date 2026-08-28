@@ -4,8 +4,9 @@ if (!process.env.DATABASE_URL) throw new Error("Falta DATABASE_URL para conectar
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const EVENT_TYPES = new Set(["message", "command", "moderation", "warn", "member_join", "member_leave"]);
-const DASHBOARD_PANELS = Object.freeze(["overview", "welcome"]);
+const DASHBOARD_PANELS = Object.freeze(["overview", "customizer", "welcome"]);
 const DEFAULT_SETTINGS = Object.freeze({
+  customizer: { nickname: "Focus", avatarUrl: "", bannerUrl: "", accentColor: "#5865F2" },
   welcome: { enabled: true, channel: "general", message: "Bienvenido {user} a {server}!", format: "text" },
   moderation: { enabled: true, antiSpam: true, filterLinks: false, warnLimit: 3 },
   roles: { enabled: false, defaultRole: "Miembro" },
@@ -41,9 +42,11 @@ function string(value, fallback, max) { return typeof value === "string" ? value
 function guildId(value) { const id = String(value || "").trim(); if (!id || id.length > 32) throw new Error("guildId no válido"); return id; }
 function normalizeSettings(input) {
   if (!isObject(input)) throw new Error("Configuración no válida");
-  const w = isObject(input.welcome) ? input.welcome : {}, m = isObject(input.moderation) ? input.moderation : {}, r = isObject(input.roles) ? input.roles : {}, a = isObject(input.automation) ? input.automation : {}, p = isObject(input.profile) ? input.profile : {};
+  const c = isObject(input.customizer) ? input.customizer : {}, w = isObject(input.welcome) ? input.welcome : {}, m = isObject(input.moderation) ? input.moderation : {}, r = isObject(input.roles) ? input.roles : {}, a = isObject(input.automation) ? input.automation : {}, p = isObject(input.profile) ? input.profile : {};
   const limit = Number(m.warnLimit);
-  return { welcome: { enabled: typeof w.enabled === "boolean" ? w.enabled : true, channel: string(w.channel, "general", 100), message: string(w.message, DEFAULT_SETTINGS.welcome.message, 1700), format: w.format === "embed" ? "embed" : "text" }, moderation: { enabled: typeof m.enabled === "boolean" ? m.enabled : true, antiSpam: typeof m.antiSpam === "boolean" ? m.antiSpam : true, filterLinks: Boolean(m.filterLinks), warnLimit: Number.isInteger(limit) && limit >= 1 && limit <= 20 ? limit : 3 }, roles: { enabled: Boolean(r.enabled), defaultRole: string(r.defaultRole, "Miembro", 100) }, automation: { logs: typeof a.logs === "boolean" ? a.logs : true, joinMessage: typeof a.joinMessage === "boolean" ? a.joinMessage : true }, profile: { description: string(p.description, "", 500), invite: string(p.invite, "", 200) } };
+  const safeUrl = (value) => { const result = string(value, "", 500); return /^https:\/\//i.test(result) ? result : ""; };
+  const color = /^#[0-9a-f]{6}$/i.test(c.accentColor || "") ? c.accentColor.toUpperCase() : DEFAULT_SETTINGS.customizer.accentColor;
+  return { customizer: { nickname: string(c.nickname, DEFAULT_SETTINGS.customizer.nickname, 32), avatarUrl: safeUrl(c.avatarUrl), bannerUrl: safeUrl(c.bannerUrl), accentColor: color }, welcome: { enabled: typeof w.enabled === "boolean" ? w.enabled : true, channel: string(w.channel, "general", 100), message: string(w.message, DEFAULT_SETTINGS.welcome.message, 1700), format: w.format === "embed" ? "embed" : "text" }, moderation: { enabled: typeof m.enabled === "boolean" ? m.enabled : true, antiSpam: typeof m.antiSpam === "boolean" ? m.antiSpam : true, filterLinks: Boolean(m.filterLinks), warnLimit: Number.isInteger(limit) && limit >= 1 && limit <= 20 ? limit : 3 }, roles: { enabled: Boolean(r.enabled), defaultRole: string(r.defaultRole, "Miembro", 100) }, automation: { logs: typeof a.logs === "boolean" ? a.logs : true, joinMessage: typeof a.joinMessage === "boolean" ? a.joinMessage : true }, profile: { description: string(p.description, "", 500), invite: string(p.invite, "", 200) } };
 }
 
 async function recordEvent({ guildId: id, eventType, metadata = null, createdAt = null }) {
