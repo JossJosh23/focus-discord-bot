@@ -3,7 +3,7 @@ const express = require("express");
 const session = require("express-session");
 const path = require("path");
 const {
-  initializeDatabase, getGuildStats, recordEvent, getGuildSettings, saveGuildSettings, getGuildActivity, recordBotHeartbeat, getBotStatus,
+  initializeDatabase, getGuildStats, recordEvent, getGuildSettings, saveGuildSettings, getGuildActivity, recordBotHeartbeat, getBotStatus, getPublicStats,
   DASHBOARD_PANELS, getDashboardUser, listDashboardUsers, saveDashboardUser, deleteDashboardUser
 } = require("../data/database");
 
@@ -48,6 +48,11 @@ app.get("/", (_req, res) => res.sendFile(path.join(publicDir, "landing", "index.
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true });
+});
+
+app.get("/api/public/stats", async (_req, res) => {
+  res.set("Cache-Control", "public, max-age=15");
+  res.json(await getPublicStats());
 });
 
 app.get("/auth/discord", (req, res) => {
@@ -344,9 +349,9 @@ app.post("/api/events", async (req, res) => {
 });
 
 app.post("/api/bot/heartbeat", requireBotEventToken, async (req, res) => {
-  const { botId, guildCount, uptimeSeconds } = req.body || {};
+  const { botId, guildCount, userCount, uptimeSeconds } = req.body || {};
   try {
-    await recordBotHeartbeat({ botId, guildCount, uptimeSeconds });
+    await recordBotHeartbeat({ botId, guildCount, userCount, uptimeSeconds });
     res.status(204).end();
   } catch (error) {
     res.status(400).json({ error: error.message });

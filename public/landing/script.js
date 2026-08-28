@@ -1,7 +1,7 @@
 /* CONFIG BOT */
 
 const BOT_ID = "1540939068693544992";
-const STATUS_URL = "";
+const STATUS_URL = "/api/public/stats";
 
 const INVITE_URL =
 `https://discord.com/oauth2/authorize?client_id=${BOT_ID}&permissions=1099780156438&scope=bot%20applications.commands`;
@@ -66,26 +66,6 @@ if(progress < 1) requestAnimationFrame(step);
 requestAnimationFrame(step);
 
 }
-
-
-const statsSection = document.querySelector(".stats");
-
-const observer = new IntersectionObserver(entries=>{
-
-if(entries[0].isIntersecting){
-
-animateValue("servers",0,1250,2000);
-animateValue("users",0,45800,2000);
-animateValue("commands",0,890432,2000);
-
-observer.disconnect();
-
-}
-
-},{threshold:0.5})
-
-if(statsSection) observer.observe(statsSection);
-
 
 
 /* FAQ */
@@ -208,25 +188,30 @@ return;
 
 try{
 
-const res = await fetch(STATUS_URL, { mode: "cors" });
+const res = await fetch(STATUS_URL, { credentials: "same-origin" });
 
 if(!res.ok) throw new Error(`Status endpoint returned ${res.status}`);
 
 const data = await res.json();
 
-if(data.status === "online"){
+if(data.online){
 
 statusText.textContent = "Sistema Online";
 statusDot.style.background = "#22c55e";
 
-}
-
-if(data.status === "offline"){
+}else{
 
 statusText.textContent = "Sistema Offline";
 statusDot.style.background = "#ef4444";
 
 }
+
+animateValue("servers", Number(document.querySelector("#servers")?.dataset.value || 0), Number(data.guildCount || 0), 700);
+animateValue("users", Number(document.querySelector("#users")?.dataset.value || 0), Number(data.userCount || 0), 700);
+animateValue("commands", Number(document.querySelector("#commands")?.dataset.value || 0), Number(data.commandCount || 0), 700);
+document.querySelector("#servers")?.setAttribute("data-value", String(data.guildCount || 0));
+document.querySelector("#users")?.setAttribute("data-value", String(data.userCount || 0));
+document.querySelector("#commands")?.setAttribute("data-value", String(data.commandCount || 0));
 
 }catch{
 
@@ -237,7 +222,7 @@ statusDot.style.background = "#ef4444";
 
 }
 
-// revisar cada 5 segundos
-if(STATUS_URL) setInterval(checkBotStatus,5000);
+// Actualiza el estado y los totales públicos cada 30 segundos.
+if(STATUS_URL) setInterval(checkBotStatus,30000);
 
 checkBotStatus();

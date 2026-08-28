@@ -140,6 +140,10 @@ async function recordWarn(guildId, moderatorId, targetId) {
   return recordGuildEvent(guildId, "warn", { moderatorId, targetId, active: true });
 }
 
+async function recordCommand(guildId, commandName, userId) {
+  return recordGuildEvent(guildId, "command", { commandName, userId });
+}
+
 async function sendHeartbeat(client) {
   await dashboardRequest("/api/bot/heartbeat", {
     method: "POST",
@@ -147,6 +151,7 @@ async function sendHeartbeat(client) {
     body: JSON.stringify({
       botId: "focus",
       guildCount: client.guilds.cache.size,
+      userCount: client.guilds.cache.reduce((total, guild) => total + (guild.memberCount || 0), 0),
       uptimeSeconds: Math.floor((client.uptime || 0) / 1000)
     })
   });
@@ -200,5 +205,6 @@ module.exports = {
   registerDashboardListeners,
   recordModerationAction,
   recordWarn,
+  recordCommand,
   getGuildSettings
 };

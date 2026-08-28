@@ -8,7 +8,7 @@ const {
   REST,
   Routes,
 } = require('discord.js');
-const { registerDashboardListeners, recordModerationAction, recordWarn } = require('../services/dashboard-service');
+const { registerDashboardListeners, recordModerationAction, recordWarn, recordCommand } = require('../services/dashboard-service');
 
 const { DISCORD_TOKEN, CLIENT_ID } = process.env;
 
@@ -82,6 +82,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
   try {
     await command.execute(interaction, client);
+
+    if (interaction.guildId) {
+      recordCommand(interaction.guildId, interaction.commandName, interaction.user.id).catch(console.error);
+    }
 
     if (interaction.guildId && ["ban", "kick", "timeout", "lock", "unlock", "clear"].includes(interaction.commandName)) {
       const targetId = interaction.options.getUser("usuario")?.id || null;

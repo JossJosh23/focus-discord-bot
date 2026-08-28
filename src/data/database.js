@@ -3,7 +3,7 @@ const { Pool } = require("pg");
 if (!process.env.DATABASE_URL) throw new Error("Falta DATABASE_URL para conectar PostgreSQL");
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-const EVENT_TYPES = new Set(["message", "moderation", "warn", "member_join", "member_leave"]);
+const EVENT_TYPES = new Set(["message", "command", "moderation", "warn", "member_join", "member_leave"]);
 const DASHBOARD_PANELS = Object.freeze(["overview", "welcome"]);
 const DEFAULT_SETTINGS = Object.freeze({
   welcome: { enabled: true, channel: "general", message: "Bienvenido {user} a {server}!", format: "text" },
@@ -25,8 +25,11 @@ async function initializeDatabase() {
       guild_id TEXT PRIMARY KEY, settings JSONB NOT NULL DEFAULT '{}'::jsonb, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
     CREATE TABLE IF NOT EXISTS bot_heartbeats (
-      bot_id TEXT PRIMARY KEY, guild_count INTEGER NOT NULL DEFAULT 0, uptime_seconds INTEGER NOT NULL DEFAULT 0, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      bot_id TEXT PRIMARY KEY, guild_count INTEGER NOT NULL DEFAULT 0, user_count INTEGER NOT NULL DEFAULT 0, uptime_seconds INTEGER NOT NULL DEFAULT 0, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+    ALTER TABLE bot_heartbeats ADD COLUMN IF NOT EXISTS user_count INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE guild_events DROP CONSTRAINT IF EXISTS guild_events_event_type_check;
+    ALTER TABLE guild_events ADD CONSTRAINT guild_events_event_type_check CHECK(event_type IN ('message','command','moderation','warn','member_join','member_leave'));
     CREATE TABLE IF NOT EXISTS dashboard_users (
       discord_id TEXT PRIMARY KEY, display_name TEXT NOT NULL DEFAULT '', panels JSONB NOT NULL DEFAULT '[]'::jsonb, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
@@ -65,8 +68,9 @@ async function getGuildStats(id) {
 async function getGuildSettings(id) { const { rows: [row] } = await pool.query("SELECT settings FROM guild_settings WHERE guild_id=$1", [guildId(id)]); return normalizeSettings(row?.settings || {}); }
 async function saveGuildSettings(id, settings) { const normalized = normalizeSettings(settings), key = guildId(id); await pool.query("INSERT INTO guild_settings (guild_id,settings,updated_at) VALUES ($1,$2,NOW()) ON CONFLICT(guild_id) DO UPDATE SET settings=EXCLUDED.settings,updated_at=NOW()", [key, normalized]); return normalized; }
 async function getGuildActivity(id) { const { rows } = await pool.query("SELECT created_at::date::text date, COUNT(*) FILTER (WHERE event_type='message')::int messages, COUNT(*) FILTER (WHERE event_type='member_join')::int joins, COUNT(*) FILTER (WHERE event_type IN ('moderation','warn'))::int moderation FROM guild_events WHERE guild_id=$1 AND created_at>=NOW()-INTERVAL '7 days' GROUP BY created_at::date ORDER BY date", [guildId(id)]); return rows; }
-async function recordBotHeartbeat({ botId = "focus", guildCount = 0, uptimeSeconds = 0 }) { await pool.query("INSERT INTO bot_heartbeats (bot_id,guild_count,uptime_seconds,updated_at) VALUES ($1,$2,$3,NOW()) ON CONFLICT(bot_id) DO UPDATE SET guild_count=EXCLUDED.guild_count,uptime_seconds=EXCLUDED.uptime_seconds,updated_at=NOW()", [string(botId, "focus", 100), Math.max(0, Number(guildCount) || 0), Math.max(0, Number(uptimeSeconds) || 0)]); }
-async function getBotStatus(botId = "focus") { const { rows: [row] } = await pool.query("SELECT guild_count,uptime_seconds,updated_at,EXTRACT(EPOCH FROM (NOW()-updated_at)) seconds FROM bot_heartbeats WHERE bot_id=$1", [botId]); return row ? { online: Number(row.seconds) <= 90, uptime: Number(row.uptime_seconds), lastSync: row.updated_at, guildCount: Number(row.guild_count) } : { online: false, uptime: 0, lastSync: null, guildCount: 0 }; }
+async function recordBotHeartbeat({ botId = "focus", guildCount = 0, userCount = 0, uptimeSeconds = 0 }) { await pool.query("INSERT INTO bot_heartbeats (bot_id,guild_count,user_count,uptime_seconds,updated_at) VALUES ($1,$2,$3,$4,NOW()) ON CONFLICT(bot_id) DO UPDATE SET guild_count=EXCLUDED.guild_count,user_count=EXCLUDED.user_count,uptime_seconds=EXCLUDED.uptime_seconds,updated_at=NOW()", [string(botId, "focus", 100), Math.max(0, Number(guildCount) || 0), Math.max(0, Number(userCount) || 0), Math.max(0, Number(uptimeSeconds) || 0)]); }
+async function getBotStatus(botId = "focus") { const { rows: [row] } = await pool.query("SELECT guild_count,user_count,uptime_seconds,updated_at,EXTRACT(EPOCH FROM (NOW()-updated_at)) seconds FROM bot_heartbeats WHERE bot_id=$1", [botId]); return row ? { online: Number(row.seconds) <= 90, uptime: Number(row.uptime_seconds), lastSync: row.updated_at, guildCount: Number(row.guild_count), userCount: Number(row.user_count) } : { online: false, uptime: 0, lastSync: null, guildCount: 0, userCount: 0 }; }
+async function getPublicStats() { const [status, result] = await Promise.all([getBotStatus(), pool.query("SELECT COUNT(*) FILTER (WHERE event_type='command')::int commands FROM guild_events")]); return { ...status, commandCount: Number(result.rows[0]?.commands || 0) }; }
 
 function normalizeUser({ discordId, displayName = "", panels = [] }) { const id = String(discordId || "").trim(); if (!/^\d{17,20}$/.test(id) || !Array.isArray(panels)) throw new Error("Usuario no válido"); return { discordId: id, displayName: string(displayName, "", 80), panels: [...new Set(panels.filter((panel) => DASHBOARD_PANELS.includes(panel)))] }; }
 async function getDashboardUser(id) { const { rows: [row] } = await pool.query("SELECT discord_id,display_name,panels FROM dashboard_users WHERE discord_id=$1", [String(id)]); return row ? normalizeUser({ discordId: row.discord_id, displayName: row.display_name, panels: row.panels }) : null; }
@@ -74,4 +78,4 @@ async function listDashboardUsers() { const { rows } = await pool.query("SELECT 
 async function saveDashboardUser(user) { const n = normalizeUser(user); await pool.query("INSERT INTO dashboard_users (discord_id,display_name,panels,updated_at) VALUES ($1,$2,$3,NOW()) ON CONFLICT(discord_id) DO UPDATE SET display_name=EXCLUDED.display_name,panels=EXCLUDED.panels,updated_at=NOW()", [n.discordId, n.displayName, JSON.stringify(n.panels)]); return n; }
 async function deleteDashboardUser(id) { return (await pool.query("DELETE FROM dashboard_users WHERE discord_id=$1", [String(id)])).rowCount > 0; }
 
-module.exports = { initializeDatabase, recordEvent, getGuildStats, getGuildSettings, saveGuildSettings, getGuildActivity, recordBotHeartbeat, getBotStatus, DASHBOARD_PANELS, getDashboardUser, listDashboardUsers, saveDashboardUser, deleteDashboardUser };
+module.exports = { initializeDatabase, recordEvent, getGuildStats, getGuildSettings, saveGuildSettings, getGuildActivity, recordBotHeartbeat, getBotStatus, getPublicStats, DASHBOARD_PANELS, getDashboardUser, listDashboardUsers, saveDashboardUser, deleteDashboardUser };

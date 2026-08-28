@@ -4,7 +4,8 @@ const loginButton = document.querySelector("#loginButton");
 if (loginButton) {
   loginButton.addEventListener("click", () => {
     loginButton.disabled = true;
-    loginButton.textContent = "Conectando...";
+    const label = loginButton.querySelector("span");
+    if (label) label.textContent = "Conectando...";
     window.location.assign("/auth/discord");
   });
 }
