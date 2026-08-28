@@ -292,7 +292,8 @@ function renderNotificationsWorkspace(c) {
   const alerts = c.notifications?.twitch || [];
   const channelOptions = (selected) => guildChannels.map((channel) => `<option value="${channel.id}" ${channel.id === selected ? "selected" : ""}># ${escapeHtml(channel.name)}</option>`).join("");
   const roleOptions = (selected) => guildRoles.map((role) => `<option value="${role.id}" ${role.id === selected ? "selected" : ""}>@${escapeHtml(role.name)}</option>`).join("");
-  const cards = alerts.map((alert, index) => `<article class="twitch-alert-card" data-alert-id="${escapeHtml(alert.id)}"><header><div class="twitch-mark">T</div><div><span>ALERTA ${index + 1}</span><h3>${escapeHtml(alert.username || "Nuevo canal")}</h3></div><label class="focus-switch"><input name="enabled" type="checkbox" ${alert.enabled !== false ? "checked" : ""}><i></i></label><button type="button" class="twitch-remove" aria-label="Eliminar alerta">×</button></header><div class="twitch-alert-fields"><label><span>Usuario de Twitch</span><div class="input-prefix"><b>twitch.tv/</b><input name="username" maxlength="25" value="${escapeHtml(alert.username)}" placeholder="usuario"></div></label><label><span>Canal de Discord</span><select name="channelId"><option value="">Selecciona un canal</option>${channelOptions(alert.channelId)}</select></label><label><span>Rol que se notificará</span><select name="roleId"><option value="">Sin mencionar un rol</option>${roleOptions(alert.roleId)}</select></label><label class="twitch-message-field"><span>Mensaje personalizado</span><textarea name="message" maxlength="1800" rows="4">${escapeHtml(alert.message)}</textarea><small>{role} · {streamer} · {title} · {game} · {viewers} · {url}</small></label></div></article>`).join("");
+  const canTest = dashboardAccess.canManageUsers === true;
+  const cards = alerts.map((alert, index) => `<article class="twitch-alert-card" data-alert-id="${escapeHtml(alert.id)}"><header><div class="twitch-mark">T</div><div><span>ALERTA ${index + 1}</span><h3>${escapeHtml(alert.username || "Nuevo canal")}</h3></div><label class="focus-switch"><input name="enabled" type="checkbox" ${alert.enabled !== false ? "checked" : ""}><i></i></label>${canTest ? `<button type="button" class="twitch-test" title="Herramienta disponible solo en modo dev">Enviar prueba</button>` : ""}<button type="button" class="twitch-remove" aria-label="Eliminar alerta">×</button></header><div class="twitch-alert-fields"><label><span>Usuario de Twitch</span><div class="input-prefix"><b>twitch.tv/</b><input name="username" maxlength="25" value="${escapeHtml(alert.username)}" placeholder="usuario"></div></label><label><span>Canal de Discord</span><select name="channelId"><option value="">Selecciona un canal</option>${channelOptions(alert.channelId)}</select></label><label><span>Rol que se notificará</span><select name="roleId"><option value="">Sin mencionar un rol</option>${roleOptions(alert.roleId)}</select></label><label class="twitch-message-field"><span>Mensaje personalizado</span><textarea name="message" maxlength="1800" rows="4">${escapeHtml(alert.message)}</textarea><small>{role} · {streamer} · {title} · {game} · {viewers} · {url}</small></label></div></article>`).join("");
   return `<section class="notifications-workspace"><div class="dashboard-heading"><div><p class="eyebrow">AUTOMATIZACIONES</p><h1>Notificaciones</h1><p class="dashboard-subtitle">Avisa a tu comunidad cuando tus creadores favoritos comiencen un directo.</p></div><button id="addTwitchAlert" class="primary-button" type="button">+ Añadir usuario</button></div><div class="notification-provider"><div class="twitch-provider-icon">T</div><div><h2>Alertas de Twitch</h2><p>Focus comprobará los canales cada minuto y publicará una sola alerta por directo.</p></div><span>${alerts.length} / 50</span></div><form id="twitchAlertsForm"><div id="twitchAlertsList" class="twitch-alert-list">${cards || `<div class="notification-empty"><strong>No hay alertas configuradas</strong><p>Añade un usuario de Twitch para comenzar.</p></div>`}</div><footer class="notification-actions"><span>Variables dinámicas disponibles en cada mensaje.</span><button class="primary-button">Guardar alertas</button></footer></form></section>`;
 }
 
@@ -334,13 +335,37 @@ function bindNotificationsView() {
   form.querySelectorAll('[name="username"]').forEach((input) => input.addEventListener("input", () => {
     input.closest(".twitch-alert-card").querySelector("h3").textContent = input.value.trim() || "Nuevo canal";
   }));
+  form.querySelectorAll(".twitch-test").forEach((button) => button.addEventListener("click", async () => {
+    const card = button.closest(".twitch-alert-card");
+    const alerts = readTwitchAlerts(form);
+    if (alerts.some((alert) => !/^[a-z0-9_]{3,25}$/.test(alert.username) || !alert.channelId)) return showToast("Guarda un usuario y canal válidos antes de probar", true);
+    guildConfiguration.notifications = { twitch: alerts };
+    button.disabled = true;
+    button.textContent = "Enviando...";
+    try {
+      await saveGuildConfiguration("notifications");
+      const response = await fetch(`/api/guilds/${encodeURIComponent(activeGuildId)}/notifications/twitch/${encodeURIComponent(card.dataset.alertId)}/test`, { method: "POST", credentials: "same-origin" });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "No se pudo enviar la prueba");
+      showToast(`Alerta de prueba enviada a #${result.channel.name}`);
+    } catch (error) {
+      showToast(error.message || "No se pudo enviar la prueba", true);
+    } finally {
+      button.disabled = false;
+      button.textContent = "Enviar prueba";
+    }
+  }));
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const alerts = [...form.querySelectorAll(".twitch-alert-card")].map((card) => ({ id: card.dataset.alertId, enabled: card.querySelector('[name="enabled"]').checked, username: card.querySelector('[name="username"]').value.trim().replace(/^@/, "").toLowerCase(), channelId: card.querySelector('[name="channelId"]').value, roleId: card.querySelector('[name="roleId"]').value, message: card.querySelector('[name="message"]').value.trim() }));
+    const alerts = readTwitchAlerts(form);
     if (alerts.some((alert) => !/^[a-z0-9_]{3,25}$/.test(alert.username) || !alert.channelId)) return showToast("Revisa el usuario de Twitch y el canal de Discord", true);
     guildConfiguration.notifications = { twitch: alerts };
     try { await saveGuildConfiguration("notifications"); renderManagementViews(); } catch (error) { showToast(error.message || "No se pudieron guardar las alertas", true); }
   });
+}
+
+function readTwitchAlerts(form) {
+  return [...form.querySelectorAll(".twitch-alert-card")].map((card) => ({ id: card.dataset.alertId, enabled: card.querySelector('[name="enabled"]').checked, username: card.querySelector('[name="username"]').value.trim().replace(/^@/, "").toLowerCase(), channelId: card.querySelector('[name="channelId"]').value, roleId: card.querySelector('[name="roleId"]').value, message: card.querySelector('[name="message"]').value.trim() }));
 }
 
 function bindCustomizerPreview() {
@@ -455,7 +480,14 @@ function bindWelcomePreview() {
     applyCommunitySettings(form);
     if (isLocalEnvironment) return showToast("Modo local: la vista previa está activa; despliega para enviar a Discord");
     testButton.disabled = true; testButton.textContent = "Enviando...";
-    try { await saveGuildConfiguration("welcome"); const response = await fetch(`/api/guilds/${encodeURIComponent(activeGuildId)}/welcome/test`, { method: "POST", credentials: "same-origin" }); const data = await response.json(); if (!response.ok) throw new Error(data.error); showToast(`Prueba enviada a #${data.channel.name}`); } catch (error) { showToast(error.message || "No se pudo enviar la prueba", true); } finally { testButton.disabled = false; testButton.textContent = "Enviar prueba"; }
+    try {
+      await saveGuildConfiguration("welcome");
+      const response = await fetch(`/api/guilds/${encodeURIComponent(activeGuildId)}/welcome/test`, { method: "POST", credentials: "same-origin" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+      const sent = [data.messageSent && "mensaje", data.cardSent && "tarjeta", data.dmSent && "DM"].filter(Boolean).join(", ");
+      showToast(data.warnings?.length ? `${sent || "Prueba parcial"}: ${data.warnings.join(" ")}` : `${sent || "Prueba"} enviado a #${data.channel.name}`, Boolean(data.warnings?.length));
+    } catch (error) { showToast(error.message || "No se pudo enviar la prueba", true); } finally { testButton.disabled = false; testButton.textContent = "Enviar prueba"; }
   });
   updatePreview();
 }
@@ -524,7 +556,8 @@ function bindLegacyWelcomePreview() {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "No se pudo enviar la prueba");
-      showToast(`Prueba enviada a #${data.channel.name}`);
+      const sent = [data.messageSent && "mensaje", data.cardSent && "tarjeta", data.dmSent && "DM"].filter(Boolean).join(", ");
+      showToast(data.warnings?.length ? `${sent || "Prueba parcial"}: ${data.warnings.join(" ")}` : `${sent || "Prueba"} enviado a #${data.channel.name}`, Boolean(data.warnings?.length));
     } catch (error) {
       showToast(error.message || "No se pudo enviar la prueba", true);
     } finally {

@@ -102,7 +102,9 @@ async function sendWelcome(member, settings) {
 
   if (welcome.dm?.enabled) {
     const dmContent = welcomeVariables(welcome.dm.message, member).slice(0, 2_000);
-    await member.send({ content: dmContent, allowedMentions: { users: [member.id] } }).catch(() => null);
+    await member.send({ content: dmContent, allowedMentions: { users: [member.id] } }).catch((error) => {
+      console.warn(`No se pudo enviar el DM de bienvenida a ${member.user.tag}: ${error.message}`);
+    });
   }
 
   const sendPublicMessage = welcome.enabled && settings.automation?.joinMessage;
@@ -136,8 +138,12 @@ async function sendWelcome(member, settings) {
   }
 
   if (sendCard) {
-    const image = await renderWelcomeCard(member, welcome.card);
-    await channel.send({ files: [new AttachmentBuilder(image, { name: `bienvenida-${member.id}.png` })] });
+    try {
+      const image = await renderWelcomeCard(member, welcome.card);
+      await channel.send({ files: [new AttachmentBuilder(image, { name: `bienvenida-${member.id}.png` })] });
+    } catch (error) {
+      console.error(`No se pudo generar la tarjeta de bienvenida en ${member.guild.name}:`, error);
+    }
   }
 }
 
@@ -269,7 +275,9 @@ function registerDashboardListeners(client) {
 
   client.on("guildMemberAdd", async (member) => {
     try {
-      const settings = await getGuildSettings(member.guild.id);
+      // Una entrada debe usar siempre la configuración más reciente; evita
+      // probar tarjetas o DMs con una versión anterior guardada en caché.
+      const settings = await getGuildSettings(member.guild.id, true);
       await Promise.all([assignDefaultRole(member, settings), sendWelcome(member, settings)]);
       await recordGuildEvent(member.guild.id, "member_join", { userId: member.id });
     } catch (error) {
@@ -286,7 +294,7 @@ function registerDashboardListeners(client) {
     }
   });
 
-  client.once("ready", () => {
+  client.once("clientReady", () => {
     sendHeartbeat(client).catch(console.error);
     const heartbeatTimer = setInterval(() => sendHeartbeat(client).catch(console.error), 45_000);
     heartbeatTimer.unref();

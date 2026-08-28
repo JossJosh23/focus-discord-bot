@@ -2,6 +2,7 @@ const crypto = require("crypto");
 const express = require("express");
 const session = require("express-session");
 const path = require("path");
+const sharp = require("sharp");
 const {
   initializeDatabase, getGuildStats, recordEvent, getGuildSettings, saveGuildSettings, getGuildActivity, recordBotHeartbeat, getBotStatus, getPublicStats,
   DASHBOARD_PANELS, getDashboardUser, listDashboardUsers, saveDashboardUser, deleteDashboardUser
@@ -382,12 +383,71 @@ app.post("/api/guilds/:guildId/welcome/test", requireDashboardPanel("welcome"), 
     const channel = await resolveWelcomeChannel(req.params.guildId, settings.welcome.channel);
     if (!channel) return res.status(400).json({ error: "Selecciona un canal de texto válido para la bienvenida" });
 
-    await sendWelcomeTest(channel.id, settings.welcome, req.guild.name, req.session.user.globalName || req.session.user.username);
+    const result = await sendWelcomeTest({
+      channelId: channel.id,
+      welcome: settings.welcome,
+      guildName: req.guild.name,
+      username: req.session.user.globalName || req.session.user.username,
+      userId: req.session.user.id,
+      avatarUrl: req.session.user.avatarUrl,
+      memberCount: req.guild.memberCount || 1
+    });
     welcomeTestCooldowns.set(cooldownKey, Date.now());
-    res.status(201).json({ ok: true, channel: { id: channel.id, name: channel.name } });
+    res.status(201).json({ ok: true, channel: { id: channel.id, name: channel.name }, ...result });
   } catch (error) {
     console.error("No se pudo enviar la prueba de bienvenida:", error);
     res.status(502).json({ error: "Focus no pudo enviar el mensaje. Revisa sus permisos en el canal." });
+  }
+});
+
+app.post("/api/guilds/:guildId/notifications/twitch/:alertId/test", requireOwner, requireManagedGuild, async (req, res) => {
+  if (!process.env.DISCORD_BOT_TOKEN) {
+    return res.status(503).json({ error: "El token del bot no está configurado en la web" });
+  }
+
+  try {
+    const settings = await getGuildSettings(req.params.guildId);
+    const alert = settings.notifications?.twitch?.find((item) => item.id === req.params.alertId);
+    if (!alert) return res.status(404).json({ error: "La alerta de Twitch no existe" });
+
+    const channel = await resolveWelcomeChannel(req.params.guildId, alert.channelId);
+    if (!channel) return res.status(400).json({ error: "El canal configurado no está disponible" });
+
+    const streamer = alert.username || "streamer";
+    const url = `https://twitch.tv/${streamer}`;
+    const role = alert.roleId ? `<@&${alert.roleId}>` : "";
+    const content = String(alert.message || "{role} {streamer} está en directo: {url}")
+      .replaceAll("{role}", role)
+      .replaceAll("{streamer}", streamer)
+      .replaceAll("{title}", "Transmisión de prueba de Focus")
+      .replaceAll("{game}", "Categoría de prueba")
+      .replaceAll("{viewers}", "123")
+      .replaceAll("{url}", url)
+      .trim()
+      .slice(0, 2_000);
+
+    await discordJson(`/channels/${channel.id}/messages`, {
+      content,
+      embeds: [{
+        color: 0x9146FF,
+        author: { name: `${streamer} está en directo`, url },
+        title: "🧪 Transmisión de prueba de Focus",
+        url,
+        description: "Esta alerta solo comprueba el canal, el rol y el formato configurado.",
+        fields: [
+          { name: "Categoría", value: "Categoría de prueba", inline: true },
+          { name: "Espectadores", value: "123", inline: true }
+        ],
+        footer: { text: `Prueba interna • ${req.guild.name}` },
+        timestamp: new Date().toISOString()
+      }],
+      allowed_mentions: { roles: alert.roleId ? [alert.roleId] : [], parse: [] }
+    });
+
+    res.status(201).json({ ok: true, channel: { id: channel.id, name: channel.name } });
+  } catch (error) {
+    console.error("No se pudo probar la alerta de Twitch:", error);
+    res.status(502).json({ error: "No se pudo enviar la prueba. Revisa los permisos de Focus en el canal." });
   }
 });
 
@@ -491,23 +551,46 @@ async function resolveWelcomeChannel(guildId, channelKey) {
   return channels.find((channel) => channel.id === channelKey || channel.name === channelKey) || null;
 }
 
-async function sendWelcomeTest(channelId, welcome, guildName, username) {
-  const message = String(welcome.message || "Bienvenido {user} a {server}!")
+function replaceWelcomeTestVariables(value, { guildName, username, memberCount }) {
+  return String(value || "")
     .replaceAll("{user}", `@${username}`)
-    .replaceAll("{server}", guildName);
-  const body = welcome.format === "embed"
-    ? {
-      embeds: [{
-        color: 0x008CFF,
-        description: message.slice(0, 4_096),
-        footer: { text: `Focus • Prueba en ${guildName}` },
-        timestamp: new Date().toISOString()
-      }],
-      allowed_mentions: { parse: [] }
-    }
-    : { content: `🧪 **Prueba de bienvenida**\n${message.slice(0, 1_900)}`, allowed_mentions: { parse: [] } };
+    .replaceAll("{server}", guildName)
+    .replaceAll("{server.member_count}", String(memberCount));
+}
 
-  const response = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
+function escapeWelcomeSvg(value) {
+  return String(value || "").replace(/[<>&"']/g, (character) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&apos;" })[character]);
+}
+
+async function welcomeImageDataUri(source) {
+  if (!source) return "";
+  if (/^data:image\/(?:png|jpeg|webp);base64,/i.test(source)) return source;
+  if (!/^https:\/\//i.test(source)) return "";
+  const response = await fetch(source, { signal: AbortSignal.timeout(10_000) });
+  if (!response.ok) throw new Error(`No se pudo descargar la imagen (${response.status})`);
+  const type = String(response.headers.get("content-type") || "image/png").split(";")[0];
+  return `data:${type};base64,${Buffer.from(await response.arrayBuffer()).toString("base64")}`;
+}
+
+async function renderWelcomeTestCard(card, variables, avatarUrl) {
+  const [avatar, background] = await Promise.all([welcomeImageDataUri(avatarUrl), welcomeImageDataUri(card.backgroundImage)]);
+  const opacity = Math.min(90, Math.max(0, Number(card.overlayOpacity) || 0)) / 100;
+  const font = ["Inter", "Poppins", "Montserrat", "Roboto"].includes(card.font)
+    ? `${card.font}, Arial, sans-serif`
+    : card.font === "Monospace" ? "monospace" : "Georgia, serif";
+  const textColor = /^#[0-9a-f]{6}$/i.test(card.textColor || "") ? card.textColor : "#FFFFFF";
+  const backgroundColor = /^#[0-9a-f]{6}$/i.test(card.backgroundColor || "") ? card.backgroundColor : "#080B12";
+  const title = replaceWelcomeTestVariables(card.title || "{user} se unió al servidor", variables);
+  const subtitle = replaceWelcomeTestVariables(card.subtitle || "Miembro #{server.member_count}", variables);
+  const backgroundLayer = background
+    ? `<image href="${background}" width="1000" height="500" preserveAspectRatio="xMidYMid slice"/>`
+    : `<rect width="1000" height="500" fill="${backgroundColor}"/>`;
+  const svg = `<svg width="1000" height="500" xmlns="http://www.w3.org/2000/svg"><defs><clipPath id="avatar"><circle cx="500" cy="185" r="82"/></clipPath></defs>${backgroundLayer}<rect width="1000" height="500" fill="#000" opacity="${opacity}"/>${avatar ? `<image href="${avatar}" x="418" y="103" width="164" height="164" clip-path="url(#avatar)" preserveAspectRatio="xMidYMid slice"/>` : ""}<circle cx="500" cy="185" r="84" fill="none" stroke="${textColor}" stroke-width="5"/><text x="500" y="330" text-anchor="middle" fill="${textColor}" font-family="${escapeWelcomeSvg(font)}" font-size="42" font-weight="700">${escapeWelcomeSvg(title)}</text><text x="500" y="380" text-anchor="middle" fill="${textColor}" opacity=".78" font-family="${escapeWelcomeSvg(font)}" font-size="25">${escapeWelcomeSvg(subtitle)}</text></svg>`;
+  return sharp(Buffer.from(svg)).png().toBuffer();
+}
+
+async function discordJson(endpoint, body) {
+  const response = await fetch(`https://discord.com/api/v10${endpoint}`, {
     method: "POST",
     headers: {
       Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}`,
@@ -516,7 +599,61 @@ async function sendWelcomeTest(channelId, welcome, guildName, username) {
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(10_000)
   });
-  if (!response.ok) throw new Error(`Discord message API returned ${response.status}`);
+  if (!response.ok) {
+    const error = new Error(`Discord API returned ${response.status}: ${(await response.text()).slice(0, 300)}`);
+    error.status = response.status;
+    throw error;
+  }
+  return response.status === 204 ? null : response.json();
+}
+
+async function sendWelcomeTest({ channelId, welcome, guildName, username, userId, avatarUrl, memberCount }) {
+  const variables = { guildName, username, memberCount };
+  const result = { messageSent: false, cardSent: false, dmSent: false, warnings: [] };
+
+  if (welcome.enabled) {
+    const message = replaceWelcomeTestVariables(welcome.message || "Bienvenido {user} a {server}!", variables);
+    const body = welcome.format === "embed"
+      ? { embeds: [{ color: 0x008CFF, description: message.slice(0, 4_096), footer: { text: `Focus • Prueba en ${guildName}` }, timestamp: new Date().toISOString() }], allowed_mentions: { parse: [] } }
+      : { content: `🧪 **Prueba de bienvenida**\n${message.slice(0, 1_900)}`, allowed_mentions: { parse: [] } };
+    await discordJson(`/channels/${channelId}/messages`, body);
+    result.messageSent = true;
+  }
+
+  if (welcome.card?.enabled) {
+    try {
+      const png = await renderWelcomeTestCard(welcome.card, variables, avatarUrl);
+      const form = new FormData();
+      form.append("payload_json", JSON.stringify({ content: "🧪 **Prueba de tarjeta de bienvenida**" }));
+      form.append("files[0]", new Blob([png], { type: "image/png" }), "bienvenida-prueba.png");
+      const response = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
+        method: "POST",
+        headers: { Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}` },
+        body: form,
+        signal: AbortSignal.timeout(15_000)
+      });
+      if (!response.ok) throw new Error(`Discord image API returned ${response.status}: ${(await response.text()).slice(0, 300)}`);
+      result.cardSent = true;
+    } catch (error) {
+      console.error("No se pudo generar la tarjeta de prueba:", error);
+      result.warnings.push("No se pudo generar o adjuntar la tarjeta de bienvenida.");
+    }
+  }
+
+  if (welcome.dm?.enabled) {
+    try {
+      const dm = await discordJson("/users/@me/channels", { recipient_id: userId });
+      const content = replaceWelcomeTestVariables(welcome.dm.message || "¡Bienvenido a {server}, {user}!", variables).slice(0, 2_000);
+      await discordJson(`/channels/${dm.id}/messages`, { content, allowed_mentions: { parse: [] } });
+      result.dmSent = true;
+    } catch (error) {
+      console.warn(`No se pudo enviar el DM de prueba a ${userId}:`, error.message);
+      result.warnings.push("Discord bloqueó el mensaje privado. Activa los mensajes directos de miembros del servidor.");
+    }
+  }
+
+  if (!result.messageSent && !result.cardSent && !result.dmSent) throw new Error("No hay ningún mensaje de bienvenida activado");
+  return result;
 }
 
 function getDiscordCreationDate(snowflake) {
