@@ -200,14 +200,31 @@ function requireManagedGuild(req, res, next) {
 }
 
 app.get("/api/guilds/:guildId/settings", requireManagedGuild, async (req, res) => {
+  const settings = getGuildSettings(req.params.guildId);
+  if (!process.env.DISCORD_BOT_TOKEN) {
+    return res.json({
+      settings,
+      channels: [],
+      channelsNotice: "Falta DISCORD_BOT_TOKEN en las variables de la aplicación web."
+    });
+  }
+
   try {
     const channels = await fetchDiscordGuildChannels(req.params.guildId);
-    res.json({ settings: getGuildSettings(req.params.guildId), channels });
+    res.json({
+      settings,
+      channels,
+      channelsNotice: channels.length ? null : "Focus no encontró canales de texto. Comprueba que el bot esté invitado y pueda ver los canales."
+    });
   } catch (error) {
     console.error("No se pudieron cargar los canales del servidor:", error);
     // La configuración sigue disponible aunque Discord no responda; así el
     // administrador no pierde el acceso a los ajustes existentes.
-    res.json({ settings: getGuildSettings(req.params.guildId), channels: [] });
+    res.json({
+      settings,
+      channels: [],
+      channelsNotice: "Discord no permitió cargar los canales. Revisa el token y los permisos de Focus."
+    });
   }
 });
 

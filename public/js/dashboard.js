@@ -70,6 +70,7 @@ let statsRequestId = 0;
 let activeGuildId = null;
 let guildConfiguration = null;
 let guildChannels = [];
+let guildChannelsNotice = null;
 
 function selectGuild(guild) {
   activeGuildId = guild.id;
@@ -122,18 +123,21 @@ async function loadGuildConfiguration(guildId) {
         { id: "bienvenidas", name: "bienvenidas" },
         { id: "anuncios", name: "anuncios" }
       ];
+      guildChannelsNotice = null;
     } else {
       const response = await fetch(`/api/guilds/${encodeURIComponent(guildId)}/settings`, { credentials: "same-origin" });
       if (!response.ok) throw new Error("No se pudo cargar la configuración");
       const data = await response.json();
       guildConfiguration = data.settings;
       guildChannels = Array.isArray(data.channels) ? data.channels : [];
+      guildChannelsNotice = data.channelsNotice || null;
     }
     renderManagementViews();
     loadActivity(guildId);
   } catch {
     guildConfiguration = defaultConfiguration();
     guildChannels = [];
+    guildChannelsNotice = "No se pudo cargar la lista de canales. Inténtalo de nuevo.";
     renderManagementViews();
   }
 }
@@ -174,7 +178,13 @@ function renderManagementViews() {
 
 function renderWelcomeChannelSelector(selectedChannel) {
   const input = document.querySelector('[data-view="welcome"] [data-config="welcome.channel"]');
-  if (!input || !guildChannels.length) return;
+  if (!input) return;
+  if (!guildChannels.length) {
+    input.placeholder = "ID del canal de bienvenida";
+    const helpText = input.closest("label")?.querySelector("small");
+    if (helpText) helpText.textContent = guildChannelsNotice || "No hay canales disponibles para seleccionar.";
+    return;
+  }
 
   const select = document.createElement("select");
   select.dataset.config = "welcome.channel";
