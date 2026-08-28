@@ -106,6 +106,7 @@ app.get("/auth/callback", async (req, res) => {
 
     if (!guildsResponse.ok) throw new Error("No se pudieron obtener los servidores de Discord");
     const guilds = await guildsResponse.json();
+    const botGuildIds = await fetchBotGuildIds();
 
     const manageableGuilds = guilds
       .filter((guild) => Boolean(guild.owner) || hasAdministratorPermission(guild.permissions))
@@ -117,6 +118,7 @@ app.get("/auth/callback", async (req, res) => {
           : null,
         owner: Boolean(guild.owner),
         administrator: hasAdministratorPermission(guild.permissions),
+        botInstalled: botGuildIds.has(guild.id),
         permissions: guild.permissions,
         memberCount: guild.approximate_member_count || 0
       }));
@@ -381,6 +383,16 @@ async function fetchDiscordGuild(guildId) {
   if (!rolesResponse.ok) throw new Error(`Discord roles API returned ${rolesResponse.status}`);
   guild.roles = await rolesResponse.json();
   return guild;
+}
+
+async function fetchBotGuildIds() {
+  if (!process.env.DISCORD_BOT_TOKEN) return new Set();
+  const response = await fetch("https://discord.com/api/v10/users/@me/guilds", {
+    headers: { Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}` },
+    signal: AbortSignal.timeout(10_000)
+  });
+  if (!response.ok) return new Set();
+  return new Set((await response.json()).map((guild) => guild.id));
 }
 
 async function fetchDiscordGuildChannels(guildId) {

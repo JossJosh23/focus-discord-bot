@@ -14,7 +14,8 @@ const mockUser = {
       iconUrl: null,
       memberCount: 128,
       owner: true,
-      administrator: true
+      administrator: true,
+      botInstalled: true
     },
     {
       id: "mock-soniabot-support",
@@ -22,7 +23,8 @@ const mockUser = {
       iconUrl: null,
       memberCount: 64,
       owner: false,
-      administrator: true
+      administrator: true,
+      botInstalled: true
     },
     {
       id: "mock-gaming-latino",
@@ -36,6 +38,9 @@ const mockUser = {
 };
 
 const logoutButton = document.querySelector("#logoutButton");
+const developerMenuButton = document.querySelector("#developerMenuButton");
+const profileMenuButton = document.querySelector("#profileMenuButton");
+const planMenuButton = document.querySelector("#planMenuButton");
 const guildsMenu = document.querySelector("#guildsMenu");
 const selectorButton = document.querySelector("#serverSelectorButton");
 const selectedGuildIcon = document.querySelector("#selectedGuildIcon");
@@ -82,12 +87,18 @@ function applyDashboardAccess(user) {
     const visible = section === "developers" ? dashboardAccess.canManageUsers : allowedPanels.has(section);
     link.hidden = !visible;
   });
+  if (developerMenuButton) developerMenuButton.hidden = !dashboardAccess.canManageUsers;
 
   const activeLink = document.querySelector(".sidebar-link.active");
   if (activeLink?.hidden) {
     const firstVisible = document.querySelector(".sidebar-link[data-section]:not([hidden])");
     firstVisible?.click();
   }
+}
+
+function inviteBot(guild) {
+  const params = new URLSearchParams({ client_id: "1540939068693544992", scope: "bot applications.commands", guild_id: guild.id, disable_guild_select: "true" });
+  window.location.assign(`https://discord.com/oauth2/authorize?${params}`);
 }
 
 function renderDevelopers(users = [], panels = ["overview", "welcome"]) {
@@ -499,6 +510,7 @@ function createGuildIcon(guild, className = "guild-icon") {
 
 function renderGuilds(guilds) {
   guilds = guilds.filter((guild) => guild.owner || guild.administrator || hasAdministratorPermission(guild.permissions));
+  guilds.sort((first, second) => Number(Boolean(second.botInstalled)) - Number(Boolean(first.botInstalled)) || first.name.localeCompare(second.name, "es"));
   guildsMenu.replaceChildren();
   dashboardGuildGrid.replaceChildren();
   guildTotalLabel.textContent = `${guilds.length} servidor${guilds.length === 1 ? "" : "es"}`;
@@ -543,7 +555,8 @@ function renderGuilds(guilds) {
       option.append(ownerLabel);
     }
 
-    option.addEventListener("click", () => selectGuild(guild));
+    if (!guild.botInstalled) { const inviteLabel = document.createElement("small"); inviteLabel.textContent = "Invitar Focus"; option.append(inviteLabel); }
+    option.addEventListener("click", () => guild.botInstalled ? selectGuild(guild) : inviteBot(guild));
     guildsMenu.append(option);
 
     const card = document.createElement("article");
@@ -559,15 +572,15 @@ function renderGuilds(guilds) {
     const openButton = document.createElement("button");
     openButton.type = "button";
     openButton.className = "guild-open-button";
-    openButton.textContent = "Abrir";
-    openButton.addEventListener("click", () => selectGuild(guild));
+    openButton.textContent = guild.botInstalled ? "Abrir" : "Invitar bot";
+    openButton.addEventListener("click", () => guild.botInstalled ? selectGuild(guild) : inviteBot(guild));
     card.append(cardInfo, openButton);
     dashboardGuildGrid.append(card);
 
   });
 
   const savedGuildId = localStorage.getItem(selectedGuildKey);
-  const selectedGuild = guilds.find((guild) => guild.id === savedGuildId) || guilds[0];
+  const selectedGuild = guilds.find((guild) => guild.id === savedGuildId && guild.botInstalled) || guilds.find((guild) => guild.botInstalled) || guilds[0];
   selectGuild(selectedGuild);
 }
 
@@ -673,6 +686,17 @@ userMenuButton.addEventListener("click", () => {
   const isOpen = userMenuButton.getAttribute("aria-expanded") === "true";
   userMenuButton.setAttribute("aria-expanded", String(!isOpen));
   userMenu.hidden = isOpen;
+});
+
+profileMenuButton?.addEventListener("click", () => { userMenu.hidden = true; userMenuButton.setAttribute("aria-expanded", "false"); document.querySelector('.sidebar-link[data-section="overview"]')?.click(); });
+planMenuButton?.addEventListener("click", () => { userMenu.hidden = true; showToast("La administración de planes estará disponible próximamente"); });
+developerMenuButton?.addEventListener("click", () => {
+  userMenu.hidden = true;
+  userMenuButton.setAttribute("aria-expanded", "false");
+  document.querySelectorAll(".sidebar-link").forEach((item) => item.classList.remove("active"));
+  document.querySelectorAll(".dashboard-view").forEach((view) => view.classList.remove("active"));
+  document.querySelector('[data-view="developers"]')?.classList.add("active");
+  loadDevelopers();
 });
 
 mobileMenuButton.addEventListener("click", () => {
