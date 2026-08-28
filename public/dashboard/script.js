@@ -66,6 +66,7 @@ const statMessages = document.querySelector("#statMessages");
 const statNewMembers = document.querySelector("#statNewMembers");
 const statModeration = document.querySelector("#statModeration");
 const statWarns = document.querySelector("#statWarns");
+const statsSource = document.querySelector("#statsSource");
 const statChangeElements = {
   messages: document.querySelector("#messagesChange"),
   newMembers30d: document.querySelector("#membersChange"),
@@ -431,6 +432,7 @@ function setStatsLoading(isLoading) {
 function renderGuildStats(data) {
   const guild = data.guild;
   const stats = data.stats;
+  if (statsSource) statsSource.textContent = stats.messages || stats.newMembers30d || stats.moderationActions || stats.warns ? "Datos del bot en vivo" : "Sin actividad registrada";
   serverMembers.textContent = Number(guild.memberCount || 0).toLocaleString();
   serverRoles.textContent = guild.roleCount ?? "--";
   serverAge.textContent = guild.createdAt ? formatGuildAge(guild.createdAt) : "--";
@@ -454,10 +456,10 @@ async function loadGuildStats(guildId) {
   setStatsLoading(true);
 
   if (isLocalEnvironment) {
-    renderGuildStats({
-      guild: { memberCount: 128, roleCount: 12, createdAt: "2022-01-15T00:00:00.000Z" },
-      stats: { messages: 12800, newMembers30d: 246, moderationActions: 1429, warns: 38, changes: { messages: 12.5, newMembers30d: 8.2, moderationActions: -5.2, warns: -2.1 } }
-    });
+    if (statsSource) statsSource.textContent = "Inicia sesión para datos reales";
+    [statMessages, statNewMembers, statModeration, statWarns].forEach((element) => { if (element) element.textContent = "--"; });
+    Object.values(statChangeElements).forEach((element) => { if (element) element.textContent = "Sin datos"; });
+    setStatsLoading(false);
     return;
   }
 
@@ -478,6 +480,7 @@ async function loadGuildStats(guildId) {
         element.className = "metric-change";
       }
     });
+    if (statsSource) statsSource.textContent = "No se pudieron cargar los datos";
     setStatsLoading(false);
   }
 }
@@ -551,11 +554,12 @@ function renderGuilds(guilds) {
 
     if (guild.owner) {
       const ownerLabel = document.createElement("small");
+      ownerLabel.className = "guild-owner-badge";
       ownerLabel.textContent = "Propietario";
       option.append(ownerLabel);
     }
 
-    if (!guild.botInstalled) { const inviteLabel = document.createElement("small"); inviteLabel.textContent = "Invitar Focus"; option.append(inviteLabel); }
+    if (!guild.botInstalled) { const inviteLabel = document.createElement("small"); inviteLabel.className = "guild-invite-badge"; inviteLabel.textContent = "Invitar Focus"; option.append(inviteLabel); }
     option.addEventListener("click", () => guild.botInstalled ? selectGuild(guild) : inviteBot(guild));
     guildsMenu.append(option);
 
