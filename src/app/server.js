@@ -265,7 +265,7 @@ function requireManagedGuild(req, res, next) {
   next();
 }
 
-app.get("/api/guilds/:guildId/settings", requireDashboardAnyPanel(["customizer", "welcome"]), requireManagedGuild, async (req, res) => {
+app.get("/api/guilds/:guildId/settings", requireDashboardAnyPanel(["customizer", "notifications", "welcome"]), requireManagedGuild, async (req, res) => {
   const settings = await getGuildSettings(req.params.guildId);
   if (!process.env.DISCORD_BOT_TOKEN) {
     return res.json({
@@ -276,10 +276,12 @@ app.get("/api/guilds/:guildId/settings", requireDashboardAnyPanel(["customizer",
   }
 
   try {
-    const channels = await fetchDiscordGuildChannels(req.params.guildId);
+    const [channels, discordGuild] = await Promise.all([fetchDiscordGuildChannels(req.params.guildId), fetchDiscordGuild(req.params.guildId)]);
+    const roles = Array.isArray(discordGuild?.roles) ? discordGuild.roles.filter((role) => role.name !== "@everyone").map((role) => ({ id: role.id, name: role.name, color: role.color })) : [];
     res.json({
       settings,
       channels,
+      roles,
       channelsNotice: channels.length ? null : "Focus no encontró canales de texto. Comprueba que el bot esté invitado y pueda ver los canales."
     });
   } catch (error) {
@@ -314,7 +316,7 @@ async function discordImageDataUri(imageUrl) {
   return `data:${mimeType};base64,${buffer.toString("base64")}`;
 }
 
-app.put("/api/guilds/:guildId/settings", requireDashboardAnyPanel(["customizer", "welcome"]), requireManagedGuild, async (req, res) => {
+app.put("/api/guilds/:guildId/settings", requireDashboardAnyPanel(["customizer", "notifications", "welcome"]), requireManagedGuild, async (req, res) => {
   if (!req.body || typeof req.body !== "object" || Array.isArray(req.body)) {
     return res.status(400).json({ error: "Configuración no válida" });
   }

@@ -6,6 +6,8 @@ const eventToken = process.env.FOCUS_BOT_EVENT_INGEST_TOKEN;
 const SETTINGS_CACHE_TTL_MS = 60_000;
 const settingsCache = new Map();
 const recentMessages = new Map();
+const twitchLiveStreams = new Map();
+let twitchToken = null;
 
 function isConfigured() {
   return Boolean(statsApiUrl && eventToken);
@@ -204,6 +206,55 @@ async function sendHeartbeat(client) {
   });
 }
 
+async function getTwitchToken() {
+  if (twitchToken?.expiresAt > Date.now() + 60_000) return twitchToken.value;
+  const clientId = process.env.TWITCH_CLIENT_ID;
+  const clientSecret = process.env.TWITCH_CLIENT_SECRET;
+  if (!clientId || !clientSecret) return null;
+  const params = new URLSearchParams({ client_id: clientId, client_secret: clientSecret, grant_type: "client_credentials" });
+  const response = await fetch(`https://id.twitch.tv/oauth2/token?${params}`, { method: "POST", signal: AbortSignal.timeout(10_000) });
+  if (!response.ok) throw new Error(`Twitch OAuth respondió ${response.status}`);
+  const data = await response.json();
+  twitchToken = { value: data.access_token, expiresAt: Date.now() + (Number(data.expires_in) || 3600) * 1000 };
+  return twitchToken.value;
+}
+
+function twitchMessage(template, alert, stream) {
+  const role = alert.roleId ? `<@&${alert.roleId}>` : "";
+  const url = `https://twitch.tv/${stream.user_login}`;
+  return String(template || "{role} {streamer} está en directo: {url}")
+    .replaceAll("{role}", role).replaceAll("{streamer}", stream.user_name)
+    .replaceAll("{title}", stream.title || "Directo en Twitch").replaceAll("{game}", stream.game_name || "Sin categoría")
+    .replaceAll("{viewers}", String(stream.viewer_count || 0)).replaceAll("{url}", url).trim();
+}
+
+async function checkTwitchAlerts(client) {
+  const accessToken = await getTwitchToken();
+  if (!accessToken) return;
+  for (const guild of client.guilds.cache.values()) {
+    const settings = await getGuildSettings(guild.id, true);
+    const alerts = (settings?.notifications?.twitch || []).filter((alert) => alert.enabled);
+    if (!alerts.length) continue;
+    const params = new URLSearchParams();
+    [...new Set(alerts.map((alert) => alert.username))].forEach((username) => params.append("user_login", username));
+    const response = await fetch(`https://api.twitch.tv/helix/streams?${params}`, { headers: { Authorization: `Bearer ${accessToken}`, "Client-Id": process.env.TWITCH_CLIENT_ID }, signal: AbortSignal.timeout(12_000) });
+    if (!response.ok) { if (response.status === 401) twitchToken = null; throw new Error(`Twitch API respondió ${response.status}`); }
+    const streams = new Map((await response.json()).data.map((stream) => [stream.user_login.toLowerCase(), stream]));
+    for (const alert of alerts) {
+      const key = `${guild.id}:${alert.username}`;
+      const stream = streams.get(alert.username);
+      if (!stream) { twitchLiveStreams.delete(key); continue; }
+      if (twitchLiveStreams.get(key) === stream.id) continue;
+      const channel = guild.channels.cache.get(alert.channelId) || await guild.channels.fetch(alert.channelId).catch(() => null);
+      if (!channel?.isTextBased()) continue;
+      const url = `https://twitch.tv/${stream.user_login}`;
+      const embed = new EmbedBuilder().setColor(0x9146FF).setAuthor({ name: `${stream.user_name} está en directo`, url }).setTitle(stream.title || "Directo en Twitch").setURL(url).addFields({ name: "Categoría", value: stream.game_name || "Sin categoría", inline: true }, { name: "Espectadores", value: String(stream.viewer_count || 0), inline: true }).setImage(stream.thumbnail_url.replace("{width}", "1280").replace("{height}", "720") + `?t=${Date.now()}`).setTimestamp(new Date(stream.started_at));
+      await channel.send({ content: twitchMessage(alert.message, alert, stream).slice(0, 2_000), embeds: [embed], allowedMentions: { roles: alert.roleId ? [alert.roleId] : [], parse: [] } });
+      twitchLiveStreams.set(key, stream.id);
+    }
+  }
+}
+
 function registerDashboardListeners(client) {
   client.on("messageCreate", async (message) => {
     if (message.author.bot || !message.guildId) return;
@@ -239,6 +290,9 @@ function registerDashboardListeners(client) {
     sendHeartbeat(client).catch(console.error);
     const heartbeatTimer = setInterval(() => sendHeartbeat(client).catch(console.error), 45_000);
     heartbeatTimer.unref();
+    setTimeout(() => checkTwitchAlerts(client).catch(console.error), 5_000);
+    const twitchTimer = setInterval(() => checkTwitchAlerts(client).catch(console.error), 60_000);
+    twitchTimer.unref();
   });
 }
 

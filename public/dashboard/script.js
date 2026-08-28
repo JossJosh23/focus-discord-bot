@@ -6,7 +6,7 @@ const mockUser = {
   username: "TheGeorgex23",
   globalName: "TheGeorgex23",
   avatarUrl: defaultAvatar,
-  access: { role: "owner", panels: ["overview", "welcome"], canManageUsers: true },
+  access: { role: "owner", panels: ["overview", "customizer", "notifications", "welcome"], canManageUsers: true },
   guilds: [
     {
       id: "mock-patriot-development",
@@ -77,6 +77,7 @@ let statsRequestId = 0;
 let activeGuildId = null;
 let guildConfiguration = null;
 let guildChannels = [];
+let guildRoles = [];
 let guildChannelsNotice = null;
 let dashboardAccess = { role: "developer", panels: [], canManageUsers: false };
 
@@ -108,10 +109,10 @@ function inviteBot(guild) {
   window.location.assign(`https://discord.com/oauth2/authorize?${params}`);
 }
 
-function renderDevelopers(users = [], panels = ["overview", "customizer", "welcome"]) {
+function renderDevelopers(users = [], panels = ["overview", "customizer", "notifications", "welcome"]) {
   const target = document.querySelector("#developersContent");
   if (!target) return;
-  const panelLabels = { overview: "Visión general", customizer: "Personalizador", welcome: "Bienvenidas" };
+  const panelLabels = { overview: "Visión general", customizer: "Personalizador", notifications: "Notificaciones", welcome: "Bienvenidas" };
   target.innerHTML = `<div class="developer-access-panel"><form id="developerForm" class="developer-form"><div><p class="eyebrow">Nuevo acceso</p><h2>Invitar desarrollador</h2><p>Usa su ID de Discord. Podrás modificarlo más tarde.</p></div><label>Nombre de referencia<input name="displayName" maxlength="80" placeholder="Ej. Moderador técnico"></label><label>ID de Discord<input name="discordId" inputmode="numeric" pattern="\\d{17,20}" required placeholder="123456789012345678"></label><fieldset><legend>Paneles permitidos</legend>${panels.map((panel) => `<label class="developer-check"><input type="checkbox" name="panels" value="${panel}"><span>${panelLabels[panel] || panel}</span></label>`).join("")}</fieldset><button class="primary-button" type="submit">Guardar acceso</button><button class="developer-cancel" type="button" hidden>Cancelar edición</button></form><div class="developer-list"><div class="developer-list-head"><div><p class="eyebrow">Accesos activos</p><h2>Equipo autorizado</h2></div><span>${users.length} usuario${users.length === 1 ? "" : "s"}</span></div>${users.length ? users.map((user) => `<article class="developer-user" data-developer-id="${user.discordId}"><div class="developer-avatar">${escapeHtml((user.displayName || "D").charAt(0).toUpperCase())}</div><div><strong>${escapeHtml(user.displayName || "Sin nombre")}</strong><code>${user.discordId}</code></div><div class="developer-panels">${user.panels.length ? user.panels.map((panel) => `<span>${panelLabels[panel] || panel}</span>`).join("") : "<small>Sin paneles</small>"}</div><button type="button" class="developer-edit">Editar</button><button type="button" class="developer-remove">Quitar</button></article>`).join("") : "<p class=\"developer-empty\">Aún no has autorizado a nadie.</p>"}</div></div>`;
 
   const form = target.querySelector("#developerForm");
@@ -203,6 +204,7 @@ function selectGuild(guild) {
 function defaultConfiguration() {
   return {
     customizer: { nickname: "Focus", avatarUrl: "", bannerUrl: "", accentColor: "#5865F2" },
+    notifications: { twitch: [] },
     welcome: { enabled: true, channel: "general", message: "Bienvenido {user} a {server}!", format: "text", card: { enabled: false, font: "Inter", textColor: "#FFFFFF", backgroundColor: "#080B12", overlayOpacity: 45, backgroundImage: "", title: "{user} se unió al servidor", subtitle: "Miembro #{server.member_count}" }, dm: { enabled: false, message: "¡Bienvenido a {server}, {user}!" } },
     moderation: { enabled: true, antiSpam: true, filterLinks: false, warnLimit: 3 },
     roles: { enabled: false, defaultRole: "Miembro" },
@@ -220,6 +222,7 @@ async function loadGuildConfiguration(guildId) {
         { id: "bienvenidas", name: "bienvenidas" },
         { id: "anuncios", name: "anuncios" }
       ];
+      guildRoles = [{ id: "123456789012345678", name: "Directos" }, { id: "234567890123456789", name: "Notificaciones" }];
       guildChannelsNotice = null;
     } else {
       const response = await fetch(`/api/guilds/${encodeURIComponent(guildId)}/settings`, { credentials: "same-origin" });
@@ -227,6 +230,7 @@ async function loadGuildConfiguration(guildId) {
       const data = await response.json();
       guildConfiguration = data.settings;
       guildChannels = Array.isArray(data.channels) ? data.channels : [];
+      guildRoles = Array.isArray(data.roles) ? data.roles : [];
       guildChannelsNotice = data.channelsNotice || null;
     }
     renderManagementViews();
@@ -234,6 +238,7 @@ async function loadGuildConfiguration(guildId) {
   } catch {
     guildConfiguration = defaultConfiguration();
     guildChannels = [];
+    guildRoles = [];
     guildChannelsNotice = "No se pudo cargar la lista de canales. Inténtalo de nuevo.";
     renderManagementViews();
   }
@@ -283,6 +288,14 @@ function renderWelcomeWorkspace(c) {
   </section>`;
 }
 
+function renderNotificationsWorkspace(c) {
+  const alerts = c.notifications?.twitch || [];
+  const channelOptions = (selected) => guildChannels.map((channel) => `<option value="${channel.id}" ${channel.id === selected ? "selected" : ""}># ${escapeHtml(channel.name)}</option>`).join("");
+  const roleOptions = (selected) => guildRoles.map((role) => `<option value="${role.id}" ${role.id === selected ? "selected" : ""}>@${escapeHtml(role.name)}</option>`).join("");
+  const cards = alerts.map((alert, index) => `<article class="twitch-alert-card" data-alert-id="${escapeHtml(alert.id)}"><header><div class="twitch-mark">T</div><div><span>ALERTA ${index + 1}</span><h3>${escapeHtml(alert.username || "Nuevo canal")}</h3></div><label class="focus-switch"><input name="enabled" type="checkbox" ${alert.enabled !== false ? "checked" : ""}><i></i></label><button type="button" class="twitch-remove" aria-label="Eliminar alerta">×</button></header><div class="twitch-alert-fields"><label><span>Usuario de Twitch</span><div class="input-prefix"><b>twitch.tv/</b><input name="username" maxlength="25" value="${escapeHtml(alert.username)}" placeholder="usuario"></div></label><label><span>Canal de Discord</span><select name="channelId"><option value="">Selecciona un canal</option>${channelOptions(alert.channelId)}</select></label><label><span>Rol que se notificará</span><select name="roleId"><option value="">Sin mencionar un rol</option>${roleOptions(alert.roleId)}</select></label><label class="twitch-message-field"><span>Mensaje personalizado</span><textarea name="message" maxlength="1800" rows="4">${escapeHtml(alert.message)}</textarea><small>{role} · {streamer} · {title} · {game} · {viewers} · {url}</small></label></div></article>`).join("");
+  return `<section class="notifications-workspace"><div class="dashboard-heading"><div><p class="eyebrow">AUTOMATIZACIONES</p><h1>Notificaciones</h1><p class="dashboard-subtitle">Avisa a tu comunidad cuando tus creadores favoritos comiencen un directo.</p></div><button id="addTwitchAlert" class="primary-button" type="button">+ Añadir usuario</button></div><div class="notification-provider"><div class="twitch-provider-icon">T</div><div><h2>Alertas de Twitch</h2><p>Focus comprobará los canales cada minuto y publicará una sola alerta por directo.</p></div><span>${alerts.length} / 50</span></div><form id="twitchAlertsForm"><div id="twitchAlertsList" class="twitch-alert-list">${cards || `<div class="notification-empty"><strong>No hay alertas configuradas</strong><p>Añade un usuario de Twitch para comenzar.</p></div>`}</div><footer class="notification-actions"><span>Variables dinámicas disponibles en cada mensaje.</span><button class="primary-button">Guardar alertas</button></footer></form></section>`;
+}
+
 function renderManagementViews() {
   const c = guildConfiguration || defaultConfiguration();
   const customizer = c.customizer || defaultConfiguration().customizer;
@@ -294,11 +307,40 @@ function renderManagementViews() {
   viewContent("settings", `<div class="dashboard-heading"><div><p class="eyebrow">Preferencias</p><h1>Perfil del servidor</h1></div></div><form class="settings-panel" data-settings-form="profile"><label><span>Descripcion</span><textarea name="description" rows="3" placeholder="Describe tu comunidad">${escapeHtml(c.profile.description)}</textarea></label><label><span>Invitacion de Discord</span><input name="invite" value="${escapeHtml(c.profile.invite)}" placeholder="https://discord.gg/..." type="url"></label><button class="primary-button">Guardar perfil</button></form>`);
   viewContent("api", `<div class="dashboard-heading"><div><p class="eyebrow">Documentacion</p><h1>API y eventos</h1><p class="dashboard-subtitle">Conecta tu bot para ver actividad real en este panel.</p></div></div><div class="docs-grid"><article><h3>Registrar evento</h3><code>POST /api/events</code><p>Incluye el encabezado <code>x-event-token</code> y los campos guildId y eventType.</p></article><article><h3>Eventos disponibles</h3><p>message, member_join, member_leave, moderation y warn.</p></article><article><h3>Configuracion</h3><code>PUT /api/guilds/:id/settings</code><p>Disponible para administradores autenticados.</p></article></div>`);
   viewContent("premium", `<div class="dashboard-heading"><div><p class="eyebrow">Focus</p><h1>Premium</h1><p class="dashboard-subtitle">Planes para comunidades que necesitan mas automatizacion.</p></div></div><div class="docs-grid plans-grid"><article><h3>Gratis</h3><p>Moderacion y bienvenida esenciales.</p><strong>$0 / mes</strong></article><article class="featured-plan"><h3>Premium</h3><p>Logs avanzados, automatizaciones y soporte prioritario.</p><strong>$4.99 / mes</strong></article><article><h3>Comunidades</h3><p>Funciones a medida para servidores grandes.</p><strong>Contactanos</strong></article></div>`);
+  viewContent("notifications", renderNotificationsWorkspace(c));
   viewContent("welcome", renderWelcomeWorkspace(c));
   renderWelcomeChannelSelector(c.welcome.channel);
   bindCustomizerPreview();
+  bindNotificationsView();
   bindWelcomePreview();
   bindSettingsForms();
+}
+
+function bindNotificationsView() {
+  const form = document.querySelector("#twitchAlertsForm");
+  const addButton = document.querySelector("#addTwitchAlert");
+  if (!form || !addButton) return;
+  addButton.addEventListener("click", () => {
+    if ((guildConfiguration.notifications?.twitch || []).length >= 50) return showToast("Máximo 50 alertas por servidor", true);
+    if (!guildConfiguration.notifications) guildConfiguration.notifications = { twitch: [] };
+    guildConfiguration.notifications.twitch.push({ id: `twitch-${Date.now()}`, enabled: true, username: "", channelId: "", roleId: "", message: "¡{role} **{streamer}** está en directo!\n{title}\n{url}" });
+    renderManagementViews();
+  });
+  form.querySelectorAll(".twitch-remove").forEach((button) => button.addEventListener("click", () => {
+    const id = button.closest(".twitch-alert-card").dataset.alertId;
+    guildConfiguration.notifications.twitch = guildConfiguration.notifications.twitch.filter((alert) => alert.id !== id);
+    renderManagementViews();
+  }));
+  form.querySelectorAll('[name="username"]').forEach((input) => input.addEventListener("input", () => {
+    input.closest(".twitch-alert-card").querySelector("h3").textContent = input.value.trim() || "Nuevo canal";
+  }));
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const alerts = [...form.querySelectorAll(".twitch-alert-card")].map((card) => ({ id: card.dataset.alertId, enabled: card.querySelector('[name="enabled"]').checked, username: card.querySelector('[name="username"]').value.trim().replace(/^@/, "").toLowerCase(), channelId: card.querySelector('[name="channelId"]').value, roleId: card.querySelector('[name="roleId"]').value, message: card.querySelector('[name="message"]').value.trim() }));
+    if (alerts.some((alert) => !/^[a-z0-9_]{3,25}$/.test(alert.username) || !alert.channelId)) return showToast("Revisa el usuario de Twitch y el canal de Discord", true);
+    guildConfiguration.notifications = { twitch: alerts };
+    try { await saveGuildConfiguration("notifications"); renderManagementViews(); } catch (error) { showToast(error.message || "No se pudieron guardar las alertas", true); }
+  });
 }
 
 function bindCustomizerPreview() {
