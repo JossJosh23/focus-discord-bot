@@ -14,7 +14,7 @@ public/
   dashboard/      Panel de control y sus recursos
   shared/         JavaScript reutilizable entre vistas
   assets/         Imagenes y logotipos
-sonia-bot/
+focus-bot/
   src/            Arranque del cliente de Discord
   commands/       Comandos slash por categoria
   services/       Conexion del bot con la API web
@@ -43,7 +43,7 @@ La aplicacion web se inicia con `node src/server.js`. Configura estas variables 
 ```env
 CLIENT_ID=1540939068693544992
 CLIENT_SECRET=tu_client_secret_real
-REDIRECT_URI=https://soniabot.playorch.tech/auth/callback
+REDIRECT_URI=https://focusbot.playorch.tech/auth/callback
 SESSION_SECRET=una_clave_larga_y_aleatoria
 DISCORD_BOT_TOKEN=token_privado_del_bot
 EVENT_INGEST_TOKEN=token_privado_para_eventos
@@ -52,14 +52,14 @@ DATABASE_URL=postgresql://focus_app:tu_contrasena@host-interno:5432/focus
 NODE_ENV=production
 ```
 
-No declares `PORT` si el proveedor lo asigna automaticamente. Registra exactamente la misma `REDIRECT_URI` en Discord Developer Portal. La comprobacion publica es `https://soniabot.playorch.tech/health`, que debe devolver `{"ok":true}`.
+No declares `PORT` si el proveedor lo asigna automaticamente. Registra exactamente la misma `REDIRECT_URI` en Discord Developer Portal. La comprobacion publica es `https://focusbot.playorch.tech/health`, que debe devolver `{"ok":true}`.
 
 ## Bot incluido
 
-El cliente de Discord esta en `sonia-bot/`. Crea `sonia-bot/.env` desde `sonia-bot/.env.example` y asegurate de que `SONIABOT_EVENT_INGEST_TOKEN` sea exactamente igual a `EVENT_INGEST_TOKEN` de la web.
+El cliente de Discord esta en `focus-bot/`. Crea `focus-bot/.env` desde `focus-bot/.env.example` y asegurate de que `FOCUS_BOT_EVENT_INGEST_TOKEN` sea exactamente igual a `EVENT_INGEST_TOKEN` de la web.
 
 ```powershell
-cd sonia-bot
+cd focus-bot
 npm install
 npm start
 ```
@@ -68,7 +68,7 @@ El bot envia un heartbeat cada 45 segundos y registra mensajes, entradas, salida
 
 ## Bienvenidas
 
-1. En `sonia-bot/.env`, establece `SONIABOT_STATS_API_URL=https://tu-dominio` y el mismo token de eventos de la web.
+1. En `focus-bot/.env`, establece `FOCUS_BOT_STATS_API_URL=https://tu-dominio` y el mismo token de eventos de la web.
 2. En Discord Developer Portal habilita **Server Members Intent**. Habilita tambien **Message Content Intent** si usaras el filtro de enlaces o anti-spam.
 3. En el dashboard abre **Bienvenidas**, elige un canal, configura texto o embed, y guarda.
 4. Pulsa **Enviar prueba a Discord** para verificar el canal y los permisos.

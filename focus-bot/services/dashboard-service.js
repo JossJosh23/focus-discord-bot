@@ -1,7 +1,7 @@
 const { EmbedBuilder } = require("discord.js");
 
-const statsApiUrl = (process.env.SONIABOT_STATS_API_URL || "").replace(/\/$/, "");
-const eventToken = process.env.SONIABOT_EVENT_INGEST_TOKEN;
+const statsApiUrl = (process.env.FOCUS_BOT_STATS_API_URL || "").replace(/\/$/, "");
+const eventToken = process.env.FOCUS_BOT_EVENT_INGEST_TOKEN;
 const SETTINGS_CACHE_TTL_MS = 60_000;
 const settingsCache = new Map();
 const recentMessages = new Map();

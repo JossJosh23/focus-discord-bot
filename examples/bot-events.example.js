@@ -1,5 +1,5 @@
-const statsApiUrl = process.env.SONIABOT_STATS_API_URL;
-const eventToken = process.env.SONIABOT_EVENT_INGEST_TOKEN;
+const statsApiUrl = process.env.FOCUS_BOT_STATS_API_URL;
+const eventToken = process.env.FOCUS_BOT_EVENT_INGEST_TOKEN;
 
 async function recordGuildEvent(guildId, eventType, metadata = {}) {
   if (!statsApiUrl || !eventToken) return;

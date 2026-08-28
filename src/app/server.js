@@ -30,7 +30,7 @@ app.use((_, res, next) => {
 });
 app.use(express.json({ limit: "32kb" }));
 app.use(session({
-  name: "soniabot.sid",
+  name: "focusbot.sid",
   secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
@@ -455,7 +455,7 @@ function getDiscordCreationDate(snowflake) {
 app.post("/auth/logout", (req, res) => {
   req.session.destroy((error) => {
     if (error) return res.status(500).json({ error: "No se pudo cerrar la sesión" });
-    return res.clearCookie("soniabot.sid").json({ ok: true });
+    return res.clearCookie("focusbot.sid").json({ ok: true });
   });
 });
 

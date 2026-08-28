@@ -1,4 +1,4 @@
-const savedUserKey = "soniabot.user";
+const savedUserKey = "focusbot.user";
 const loginButton = document.querySelector("#loginButton");
 
 if (loginButton) {

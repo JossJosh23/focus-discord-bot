@@ -1,5 +1,5 @@
-const savedUserKey = "soniabot.user";
-const selectedGuildKey = "soniabot.selectedGuild";
+const savedUserKey = "focusbot.user";
+const selectedGuildKey = "focusbot.selectedGuild";
 const defaultAvatar = "https://cdn.discordapp.com/embed/avatars/0.png";
 const isLocalEnvironment = ["localhost", "127.0.0.1"].includes(window.location.hostname);
 const mockUser = {
@@ -18,7 +18,7 @@ const mockUser = {
       botInstalled: true
     },
     {
-      id: "mock-soniabot-support",
+      id: "mock-focusbot-support",
       name: "Focus Support",
       iconUrl: null,
       memberCount: 64,
@@ -207,7 +207,7 @@ function defaultConfiguration() {
 async function loadGuildConfiguration(guildId) {
   try {
     if (isLocalEnvironment) {
-      guildConfiguration = JSON.parse(localStorage.getItem(`soniabot.config.${guildId}`) || "null") || defaultConfiguration();
+      guildConfiguration = JSON.parse(localStorage.getItem(`focusbot.config.${guildId}`) || "null") || defaultConfiguration();
       guildChannels = [
         { id: "general", name: "general" },
         { id: "bienvenidas", name: "bienvenidas" },
@@ -235,7 +235,7 @@ async function loadGuildConfiguration(guildId) {
 async function saveGuildConfiguration() {
   if (!activeGuildId || !guildConfiguration) return;
   if (isLocalEnvironment) {
-    localStorage.setItem(`soniabot.config.${activeGuildId}`, JSON.stringify(guildConfiguration));
+    localStorage.setItem(`focusbot.config.${activeGuildId}`, JSON.stringify(guildConfiguration));
     showToast("Cambios guardados");
     return;
   }
@@ -628,12 +628,12 @@ function setupNavigation() {
   });
 
   document.querySelectorAll("[data-setting]").forEach((input) => {
-    const settings = JSON.parse(localStorage.getItem("soniabot.settings") || "{}");
+    const settings = JSON.parse(localStorage.getItem("focusbot.settings") || "{}");
     if (typeof settings[input.dataset.setting] === "boolean") input.checked = settings[input.dataset.setting];
     input.addEventListener("change", () => {
-      const current = JSON.parse(localStorage.getItem("soniabot.settings") || "{}");
+      const current = JSON.parse(localStorage.getItem("focusbot.settings") || "{}");
       current[input.dataset.setting] = input.checked;
-      localStorage.setItem("soniabot.settings", JSON.stringify(current));
+      localStorage.setItem("focusbot.settings", JSON.stringify(current));
     });
   });
 }
