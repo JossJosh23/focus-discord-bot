@@ -33,7 +33,7 @@ const insertEvent = database.prepare(`
 
 const EVENT_TYPES = new Set(["message", "moderation", "warn", "member_join", "member_leave"]);
 const DEFAULT_SETTINGS = Object.freeze({
-  welcome: { enabled: true, channel: "general", message: "Bienvenido {user} a {server}!" },
+  welcome: { enabled: true, channel: "general", message: "Bienvenido {user} a {server}!", format: "text" },
   moderation: { enabled: true, antiSpam: true, filterLinks: false, warnLimit: 3 },
   roles: { enabled: false, defaultRole: "Miembro" },
   automation: { logs: true, joinMessage: true },
@@ -69,7 +69,8 @@ function normalizeSettings(settings) {
     welcome: {
       enabled: typeof welcome.enabled === "boolean" ? welcome.enabled : DEFAULT_SETTINGS.welcome.enabled,
       channel: optionalString(welcome.channel, DEFAULT_SETTINGS.welcome.channel, 100),
-      message: optionalString(welcome.message, DEFAULT_SETTINGS.welcome.message, 1_700)
+      message: optionalString(welcome.message, DEFAULT_SETTINGS.welcome.message, 1_700),
+      format: welcome.format === "embed" ? "embed" : DEFAULT_SETTINGS.welcome.format
     },
     moderation: {
       enabled: typeof moderation.enabled === "boolean" ? moderation.enabled : DEFAULT_SETTINGS.moderation.enabled,

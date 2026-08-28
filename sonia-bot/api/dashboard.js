@@ -1,3 +1,5 @@
+const { EmbedBuilder } = require("discord.js");
+
 const statsApiUrl = (process.env.SONIABOT_STATS_API_URL || "").replace(/\/$/, "");
 const eventToken = process.env.SONIABOT_EVENT_INGEST_TOKEN;
 const SETTINGS_CACHE_TTL_MS = 60_000;
@@ -72,6 +74,16 @@ async function sendWelcome(member, settings) {
   const content = String(welcome.message || "Bienvenido {user} a {server}!")
     .replaceAll("{user}", `<@${member.id}>`)
     .replaceAll("{server}", member.guild.name);
+
+  if (welcome.format === "embed") {
+    const embed = new EmbedBuilder()
+      .setColor(0x008CFF)
+      .setDescription(content.slice(0, 4_096))
+      .setFooter({ text: `Focus • ${member.guild.name}` })
+      .setTimestamp();
+    await channel.send({ embeds: [embed], allowedMentions: { users: [member.id] } });
+    return;
+  }
 
   await channel.send({ content: content.slice(0, 2_000), allowedMentions: { users: [member.id] } });
 }

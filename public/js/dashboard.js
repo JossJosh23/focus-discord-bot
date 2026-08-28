@@ -69,6 +69,7 @@ const statChangeElements = {
 let statsRequestId = 0;
 let activeGuildId = null;
 let guildConfiguration = null;
+let guildChannels = [];
 
 function selectGuild(guild) {
   activeGuildId = guild.id;
@@ -104,7 +105,7 @@ function selectGuild(guild) {
 
 function defaultConfiguration() {
   return {
-    welcome: { enabled: true, channel: "general", message: "Bienvenido {user} a {server}!" },
+    welcome: { enabled: true, channel: "general", message: "Bienvenido {user} a {server}!", format: "text" },
     moderation: { enabled: true, antiSpam: true, filterLinks: false, warnLimit: 3 },
     roles: { enabled: false, defaultRole: "Miembro" },
     automation: { logs: true, joinMessage: true },
@@ -116,15 +117,23 @@ async function loadGuildConfiguration(guildId) {
   try {
     if (isLocalEnvironment) {
       guildConfiguration = JSON.parse(localStorage.getItem(`soniabot.config.${guildId}`) || "null") || defaultConfiguration();
+      guildChannels = [
+        { id: "general", name: "general" },
+        { id: "bienvenidas", name: "bienvenidas" },
+        { id: "anuncios", name: "anuncios" }
+      ];
     } else {
       const response = await fetch(`/api/guilds/${encodeURIComponent(guildId)}/settings`, { credentials: "same-origin" });
       if (!response.ok) throw new Error("No se pudo cargar la configuración");
-      guildConfiguration = (await response.json()).settings;
+      const data = await response.json();
+      guildConfiguration = data.settings;
+      guildChannels = Array.isArray(data.channels) ? data.channels : [];
     }
     renderManagementViews();
     loadActivity(guildId);
   } catch {
     guildConfiguration = defaultConfiguration();
+    guildChannels = [];
     renderManagementViews();
   }
 }
@@ -151,14 +160,127 @@ function viewContent(view, content) {
 
 function renderManagementViews() {
   const c = guildConfiguration || defaultConfiguration();
-  viewContent("welcome", `<div class="dashboard-heading"><div><p class="eyebrow">Comunidad</p><h1>Bienvenidas</h1><p class="dashboard-subtitle">Personaliza el primer mensaje de cada miembro.</p></div></div><form class="settings-panel" data-settings-form="welcome"><label class="form-switch"><span>Activar mensajes de bienvenida</span><input name="enabled" type="checkbox" ${c.welcome.enabled ? "checked" : ""}></label><label><span>Canal</span><input name="channel" value="${escapeHtml(c.welcome.channel)}" placeholder="ID del canal o general"><small>Usa el ID del canal para evitar ambiguedades; tambien se admite el nombre exacto.</small></label><label><span>Mensaje</span><textarea name="message" rows="4">${escapeHtml(c.welcome.message)}</textarea><small>Variables: {user} y {server}</small></label><button class="primary-button">Guardar bienvenida</button></form>`);
+  viewContent("welcome", `<section class="welcome-message-workspace"><div class="welcome-workspace-heading"><div><p class="eyebrow">Comunidad</p><h1>Bienvenidas</h1><p>Da una primera impresión increíble a cada miembro que se une a tu servidor.</p></div><span class="welcome-live-badge"><i></i> Configuración en vivo</span></div><form class="welcome-message-card" data-settings-form="community"><div class="welcome-message-card-header"><div><h2>Enviar un mensaje cuando un usuario se une al servidor</h2><p>Focus publicará el mensaje en el canal que selecciones.</p></div><label class="focus-switch" aria-label="Activar mensaje de bienvenida"><input data-config="welcome.enabled" type="checkbox" ${c.welcome.enabled ? "checked" : ""}><i></i></label></div><div class="welcome-card-divider"></div><div class="welcome-channel-field"><label><span>Canal de mensajes de bienvenida <b>*</b></span><input data-config="welcome.channel" value="${escapeHtml(c.welcome.channel)}" placeholder="Selecciona un canal"></label><small>Selecciona uno de los canales de texto disponibles en tu servidor.</small></div><div class="welcome-message-layout"><div><div class="message-mode-tabs"><button type="button" class="active">Mensaje de texto</button><span>Entrega automática</span></div><label class="welcome-composer"><textarea data-config="welcome.message" rows="6" maxlength="1700" placeholder="Escribe un mensaje de bienvenida...">${escapeHtml(c.welcome.message)}</textarea><small><span>Variables: <code>{user}</code> y <code>{server}</code></span><b id="welcomeMessageCount">${c.welcome.message.length} / 1700</b></small></label></div><aside class="welcome-preview"><p>VISTA PREVIA</p><div class="welcome-preview-message"><span class="preview-bot-avatar">F</span><div><strong>Focus <small>BOT</small></strong><p id="welcomePreviewMessage">${escapeHtml(c.welcome.message).replaceAll("{user}", "@nuevo-miembro").replaceAll("{server}", escapeHtml(selectedGuildName.textContent))}</p></div></div></aside></div><div class="welcome-card-footer"><span>Los cambios se sincronizan con Focus en menos de un minuto.</span><button class="primary-button">Guardar cambios</button></div></form></section>`);
   viewContent("moderation", `<div class="dashboard-heading"><div><p class="eyebrow">Seguridad</p><h1>Moderacion</h1><p class="dashboard-subtitle">Define reglas automaticas para proteger tu comunidad.</p></div></div><form class="settings-panel" data-settings-form="moderation"><label class="form-switch"><span>Moderacion automatica</span><input name="enabled" type="checkbox" ${c.moderation.enabled ? "checked" : ""}></label><label class="form-switch"><span>Detectar spam</span><input name="antiSpam" type="checkbox" ${c.moderation.antiSpam ? "checked" : ""}></label><label class="form-switch"><span>Filtrar enlaces sospechosos</span><input name="filterLinks" type="checkbox" ${c.moderation.filterLinks ? "checked" : ""}></label><label><span>Limite de advertencias</span><input name="warnLimit" type="number" min="1" max="20" value="${c.moderation.warnLimit}"></label><button class="primary-button">Guardar reglas</button></form>`);
   viewContent("roles", `<div class="dashboard-heading"><div><p class="eyebrow">Comunidad</p><h1>Roles automaticos</h1></div></div><form class="settings-panel" data-settings-form="roles"><label><span>Rol predeterminado</span><input name="defaultRole" value="${escapeHtml(c.roles.defaultRole)}" placeholder="Miembro"></label><label class="form-switch"><span>Asignar rol al entrar</span><input name="enabled" type="checkbox" ${c.roles.enabled ? "checked" : ""}></label><button class="primary-button">Guardar roles</button></form>`);
   viewContent("automation", `<div class="dashboard-heading"><div><p class="eyebrow">Flujos</p><h1>Automatizaciones</h1></div></div><form class="settings-panel" data-settings-form="automation"><label class="form-switch"><span>Registrar logs del servidor</span><input name="logs" type="checkbox" ${c.automation.logs ? "checked" : ""}></label><label class="form-switch"><span>Mensaje al unirse un miembro</span><input name="joinMessage" type="checkbox" ${c.automation.joinMessage ? "checked" : ""}></label><button class="primary-button">Guardar automatizaciones</button></form>`);
   viewContent("settings", `<div class="dashboard-heading"><div><p class="eyebrow">Preferencias</p><h1>Perfil del servidor</h1></div></div><form class="settings-panel" data-settings-form="profile"><label><span>Descripcion</span><textarea name="description" rows="3" placeholder="Describe tu comunidad">${escapeHtml(c.profile.description)}</textarea></label><label><span>Invitacion de Discord</span><input name="invite" value="${escapeHtml(c.profile.invite)}" placeholder="https://discord.gg/..." type="url"></label><button class="primary-button">Guardar perfil</button></form>`);
   viewContent("api", `<div class="dashboard-heading"><div><p class="eyebrow">Documentacion</p><h1>API y eventos</h1><p class="dashboard-subtitle">Conecta tu bot para ver actividad real en este panel.</p></div></div><div class="docs-grid"><article><h3>Registrar evento</h3><code>POST /api/events</code><p>Incluye el encabezado <code>x-event-token</code> y los campos guildId y eventType.</p></article><article><h3>Eventos disponibles</h3><p>message, member_join, member_leave, moderation y warn.</p></article><article><h3>Configuracion</h3><code>PUT /api/guilds/:id/settings</code><p>Disponible para administradores autenticados.</p></article></div>`);
   viewContent("premium", `<div class="dashboard-heading"><div><p class="eyebrow">Focus</p><h1>Premium</h1><p class="dashboard-subtitle">Planes para comunidades que necesitan mas automatizacion.</p></div></div><div class="docs-grid plans-grid"><article><h3>Gratis</h3><p>Moderacion y bienvenida esenciales.</p><strong>$0 / mes</strong></article><article class="featured-plan"><h3>Premium</h3><p>Logs avanzados, automatizaciones y soporte prioritario.</p><strong>$4.99 / mes</strong></article><article><h3>Comunidades</h3><p>Funciones a medida para servidores grandes.</p><strong>Contactanos</strong></article></div>`);
+  renderWelcomeChannelSelector(c.welcome.channel);
+  bindWelcomePreview();
   bindSettingsForms();
+}
+
+function renderWelcomeChannelSelector(selectedChannel) {
+  const input = document.querySelector('[data-view="welcome"] [data-config="welcome.channel"]');
+  if (!input || !guildChannels.length) return;
+
+  const select = document.createElement("select");
+  select.dataset.config = "welcome.channel";
+  select.setAttribute("aria-label", "Canal de destino para la bienvenida");
+
+  const channels = [...guildChannels];
+  if (!channels.some((channel) => channel.id === selectedChannel || channel.name === selectedChannel)) {
+    channels.unshift({ id: selectedChannel, name: `Canal actual: ${selectedChannel}` });
+  }
+
+  channels.forEach((channel) => {
+    const option = document.createElement("option");
+    option.value = channel.id;
+    option.textContent = `# ${channel.name}`;
+    option.selected = channel.id === selectedChannel || channel.name === selectedChannel;
+    select.append(option);
+  });
+
+  input.replaceWith(select);
+  const helpText = select.closest("label")?.querySelector("small");
+  if (helpText) helpText.textContent = "Solo se muestran canales de texto donde Focus puede publicar mensajes.";
+}
+
+function bindWelcomePreview() {
+  const composer = document.querySelector('[data-view="welcome"] [data-config="welcome.message"]');
+  const preview = document.querySelector("#welcomePreviewMessage");
+  const counter = document.querySelector("#welcomeMessageCount");
+  if (!composer || !preview || !counter) return;
+
+  const form = composer.closest("form");
+  const modeTabs = form.querySelector(".message-mode-tabs");
+  const formatInput = document.createElement("input");
+  formatInput.type = "hidden";
+  formatInput.dataset.config = "welcome.format";
+  formatInput.value = guildConfiguration.welcome.format || "text";
+  modeTabs.replaceChildren(formatInput);
+
+  [
+    ["text", "Mensaje de texto"],
+    ["embed", "Mensaje embed"]
+  ].forEach(([format, label]) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = label;
+    button.classList.toggle("active", formatInput.value === format);
+    button.addEventListener("click", () => {
+      formatInput.value = format;
+      modeTabs.querySelectorAll("button").forEach((item) => item.classList.toggle("active", item === button));
+      form.querySelector(".welcome-preview")?.classList.toggle("embed-preview", format === "embed");
+    });
+    modeTabs.append(button);
+  });
+  form.querySelector(".welcome-preview")?.classList.toggle("embed-preview", formatInput.value === "embed");
+
+  const updatePreview = () => {
+    const guildName = selectedGuildName.textContent || "tu servidor";
+    preview.textContent = composer.value
+      .replaceAll("{user}", "@nuevo-miembro")
+      .replaceAll("{server}", guildName);
+    counter.textContent = `${composer.value.length} / 1700`;
+  };
+  composer.addEventListener("input", updatePreview);
+
+  const footer = form.querySelector(".welcome-card-footer");
+  const saveButton = footer?.querySelector(".primary-button");
+  if (!footer || !saveButton) return;
+  const testButton = document.createElement("button");
+  testButton.type = "button";
+  testButton.className = "welcome-test-button";
+  testButton.textContent = "Enviar prueba a Discord";
+  testButton.addEventListener("click", async () => {
+    applyCommunitySettings(form);
+    if (isLocalEnvironment) {
+      showToast("Modo local: configura el bot para enviar una prueba real");
+      return;
+    }
+
+    testButton.disabled = true;
+    testButton.textContent = "Enviando prueba...";
+    try {
+      await saveGuildConfiguration();
+      const response = await fetch(`/api/guilds/${encodeURIComponent(activeGuildId)}/welcome/test`, {
+        method: "POST",
+        credentials: "same-origin"
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "No se pudo enviar la prueba");
+      showToast(`Prueba enviada a #${data.channel.name}`);
+    } catch (error) {
+      showToast(error.message || "No se pudo enviar la prueba", true);
+    } finally {
+      testButton.disabled = false;
+      testButton.textContent = "Enviar prueba a Discord";
+    }
+  });
+  footer.insertBefore(testButton, saveButton);
+}
+
+function applyCommunitySettings(form) {
+  form.closest(".welcome-message-workspace").querySelectorAll("[data-config]").forEach((input) => {
+    const [section, property] = input.dataset.config.split(".");
+    if (!section || !property || !guildConfiguration[section]) return;
+    guildConfiguration[section][property] = input.type === "checkbox" ? input.checked : input.value.trim();
+  });
+  const welcomeToggle = form.querySelector('[data-config="welcome.enabled"]');
+  if (welcomeToggle) guildConfiguration.automation.joinMessage = welcomeToggle.checked;
 }
 
 function bindSettingsForms() {
@@ -166,6 +288,11 @@ function bindSettingsForms() {
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       const key = form.dataset.settingsForm;
+      if (key === "community") {
+        applyCommunitySettings(form);
+        try { await saveGuildConfiguration(); renderManagementViews(); } catch { showToast("No se pudieron guardar los cambios", true); }
+        return;
+      }
       const next = {};
       form.querySelectorAll("input, textarea").forEach((input) => { next[input.name] = input.type === "checkbox" ? input.checked : input.type === "number" ? Number(input.value) : input.value.trim(); });
       guildConfiguration[key] = { ...guildConfiguration[key], ...next };

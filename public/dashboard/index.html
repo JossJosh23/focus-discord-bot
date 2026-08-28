@@ -23,8 +23,6 @@
 </div>
 
 <nav class="dashboard-nav-links" aria-label="Enlaces principales">
-<button type="button" data-nav-section="api">Documentación</button>
-<button type="button" data-nav-section="api">API</button>
 <a href="https://discord.gg/pf8XvQGDSY" target="_blank" rel="noopener noreferrer">Soporte</a>
 </nav>
 
@@ -56,18 +54,7 @@
 <nav aria-label="Navegación del dashboard">
 <button class="sidebar-link active" type="button" data-section="overview">▦ <span>Visión general</span></button>
 <button class="sidebar-link" type="button" data-section="welcome">✦ <span>Bienvenidas</span></button>
-<button class="sidebar-link" type="button" data-section="moderation">◆ <span>Moderacion</span></button>
-<button class="sidebar-link" type="button" data-section="roles">◉ <span>Roles</span></button>
-<button class="sidebar-link" type="button" data-section="automation">ϟ <span>Automatizaciones</span></button>
-<p class="sidebar-label">INTEGRACIONES</p>
-<button class="sidebar-link" type="button" data-section="logs">≡ <span>Webhooks / Logs</span></button>
-<button class="sidebar-link" type="button" data-section="api">&lt;/&gt; <span>API</span></button>
-<p class="sidebar-label">CONFIGURACION</p>
-<button class="sidebar-link" type="button" data-section="settings">⚙ <span>Configuración</span></button>
-<button class="sidebar-link" type="button" data-section="premium">♛ <span>Premium</span></button>
-<button class="sidebar-link" type="button" data-section="support">? <span>Soporte</span></button>
 </nav>
-<div class="premium-card"><span class="premium-star">✦</span><strong>Focus Premium</strong><p>Desbloquea todas las herramientas.</p><button class="sidebar-link" type="button" data-section="premium">Ver Premium <span>→</span></button></div>
 </aside>
 
 <main class="dashboard-main">
@@ -78,25 +65,12 @@
 <div><p class="eyebrow">SERVIDOR SELECCIONADO</p><h2 id="bannerGuildName">Seleccionar servidor</h2><p><span id="bannerMemberCount">0</span> miembros</p></div>
 </div>
 <div class="server-stats"><div><strong id="serverMembers">0</strong><span>Miembros</span></div><div><strong id="serverRoles">--</strong><span>Roles</span></div><div><strong id="serverAge">--</strong><span>Antigüedad</span></div></div>
-<div class="quick-stats"><div class="section-title"><div><p class="eyebrow">RENDIMIENTO</p><h2>Estadísticas rápidas</h2></div><span>Datos reales</span></div><div class="quick-stats-grid"><article><span class="metric-icon blue">✉</span><div><strong id="statMessages">--</strong><span>Mensajes</span></div><em id="messagesChange" class="metric-change">--</em></article><article><span class="metric-icon green">♙</span><div><strong id="statNewMembers">--</strong><span>Nuevos miembros</span></div><em id="membersChange" class="metric-change">--</em></article><article><span class="metric-icon purple">◆</span><div><strong id="statModeration">--</strong><span>Acciones mod</span></div><em id="moderationChange" class="metric-change">--</em></article><article><span class="metric-icon orange">!</span><div><strong id="statWarns">--</strong><span>Warns activos</span></div><em id="warnsChange" class="metric-change">--</em></article></div></div>
+<div class="quick-stats"><div class="section-title"><div><p class="eyebrow">RENDIMIENTO</p><h2>Estadísticas rápidas</h2></div><span>Datos reales</span></div><div class="quick-stats-grid"><article><span class="metric-icon blue" aria-label="Mensajes"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 6.5h17v11h-17zM4 7l8 6 8-6"/></svg></span><div><strong id="statMessages">--</strong><span>Mensajes</span></div><em id="messagesChange" class="metric-change">--</em></article><article><span class="metric-icon green" aria-label="Nuevos miembros"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.25"/><path d="M5.5 20c.5-3.2 2.75-5 6.5-5s6 1.8 6.5 5M18 8.5c1.7.15 2.75 1.1 3 2.75M18.25 15.5c2.1.5 3.25 1.9 3.5 4.5"/></svg></span><div><strong id="statNewMembers">--</strong><span>Nuevos miembros</span></div><em id="membersChange" class="metric-change">--</em></article><article><span class="metric-icon purple" aria-label="Acciones de moderación"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 19 6v5.4c0 4.4-2.9 7.7-7 9.1-4.1-1.4-7-4.7-7-9.1V6z"/><path d="m8.8 11.8 2.1 2.1 4.5-4.5"/></svg></span><div><strong id="statModeration">--</strong><span>Acciones mod</span></div><em id="moderationChange" class="metric-change">--</em></article><article><span class="metric-icon orange" aria-label="Advertencias activas"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4 21 20H3z"/><path d="M12 9v4.5M12 17h.01"/></svg></span><div><strong id="statWarns">--</strong><span>Warns activos</span></div><em id="warnsChange" class="metric-change">--</em></article></div></div>
 <div class="guild-library-heading"><div><p class="eyebrow">Tus comunidades</p><h2>Selecciona un servidor</h2></div><span id="guildTotalLabel">0 servidores</span></div>
 <div id="dashboardGuildGrid" class="dashboard-guild-grid"></div>
-<div class="section-title tools-title"><div><p class="eyebrow">HERRAMIENTAS RAPIDAS</p><h2>Gestiona tus módulos</h2></div></div><div class="module-grid">
-<article class="module-card"><span class="tool-icon blue">◈</span><div><h3>Moderacion automatica</h3><p>Protege tu comunidad 24/7.</p></div><label class="toggle"><input type="checkbox" data-setting="moderation" checked><span></span></label><b>›</b></article>
-<article class="module-card"><span class="tool-icon green">✦</span><div><h3>Mensajes de bienvenida</h3><p>Recibe a cada nuevo miembro.</p></div><label class="toggle"><input type="checkbox" data-setting="welcome" checked><span></span></label><b>›</b></article>
-<article class="module-card"><span class="tool-icon purple">≡</span><div><h3>Logs del servidor</h3><p>Controla toda la actividad.</p></div><label class="toggle"><input type="checkbox" data-setting="logs"><span></span></label><b>›</b></article>
-<article class="module-card"><span class="tool-icon orange">◇</span><div><h3>Roles automaticos</h3><p>Organiza a tus miembros.</p></div><label class="toggle"><input type="checkbox" data-setting="roles"><span></span></label><b>›</b></article>
-</div>
 </section>
 <section class="dashboard-view" data-view="welcome"><div class="dashboard-heading"><div><p class="eyebrow">Configuracion</p><h1>Bienvenidas</h1></div></div><div class="empty-view">Configura los mensajes de bienvenida de tu servidor.</div></section>
-<section class="dashboard-view" data-view="moderation"><div class="dashboard-heading"><div><p class="eyebrow">Seguridad</p><h1>Moderacion</h1></div></div><div class="empty-view">Administra las reglas de moderacion automatica.</div></section>
-<section class="dashboard-view" data-view="roles"><div class="dashboard-heading"><div><p class="eyebrow">Comunidad</p><h1>Roles automaticos</h1></div></div><form class="settings-panel" data-settings-form="roles"><label><span>Rol predeterminado</span><input name="defaultRole" placeholder="Miembro"></label><label class="form-switch"><span>Asignar rol al entrar</span><input name="enabled" type="checkbox"></label><button class="primary-button">Guardar roles</button></form></section>
-<section class="dashboard-view" data-view="automation"><div class="dashboard-heading"><div><p class="eyebrow">Flujos</p><h1>Automatizaciones</h1></div></div><form class="settings-panel" data-settings-form="automation"><label class="form-switch"><span>Registrar logs del servidor</span><input name="logs" type="checkbox"></label><label class="form-switch"><span>Mensaje al unirse un miembro</span><input name="joinMessage" type="checkbox"></label><button class="primary-button">Guardar automatizaciones</button></form></section>
-<section class="dashboard-view" data-view="logs"><div class="dashboard-heading"><div><p class="eyebrow">Actividad</p><h1>Webhooks / Logs</h1></div></div><div class="empty-view">Consulta los eventos recientes de tu servidor.</div></section>
-<section class="dashboard-view" data-view="api"><div class="dashboard-heading"><div><p class="eyebrow">Integración</p><h1>API</h1></div></div><div class="empty-view">La API de configuración estará disponible próximamente.</div></section>
-<section class="dashboard-view" data-view="settings"><div class="dashboard-heading"><div><p class="eyebrow">Preferencias</p><h1>Configuracion</h1></div></div><div class="empty-view">Ajusta las preferencias generales de Focus.</div></section>
-<section class="dashboard-view" data-view="premium"><div class="dashboard-heading"><div><p class="eyebrow">Focus</p><h1>Premium</h1></div></div><div class="empty-view">Los planes Premium estarán disponibles próximamente.</div></section>
-<section class="dashboard-view" data-view="support"><div class="dashboard-heading"><div><p class="eyebrow">Ayuda</p><h1>Soporte</h1></div></div><div class="empty-view">Únete al servidor de soporte para recibir ayuda.</div></section>
+<footer class="dashboard-footer"><a href="/" class="dashboard-footer-brand"><img src="../public/assets/logo-focus.png" alt="">Focus</a><p>Herramientas de bienvenida para comunidades de Discord.</p><div><a href="/">Inicio</a><a href="https://discord.gg/pf8XvQGDSY" target="_blank" rel="noopener noreferrer">Soporte</a><span>© 2026 Focus</span></div></footer>
 </main>
 </div>
 <script src="../public/js/dashboard.js"></script>

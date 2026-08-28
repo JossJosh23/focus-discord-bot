@@ -9,6 +9,7 @@ const { getGuildStats, recordEvent, getGuildSettings, saveGuildSettings, getGuil
 const app = express();
 const port = Number(process.env.PORT) || 3000;
 const publicDir = path.join(__dirname, "..", "public");
+const welcomeTestCooldowns = new Map();
 
 app.set("trust proxy", 1);
 
@@ -198,8 +199,16 @@ function requireManagedGuild(req, res, next) {
   next();
 }
 
-app.get("/api/guilds/:guildId/settings", requireManagedGuild, (req, res) => {
-  res.json({ settings: getGuildSettings(req.params.guildId) });
+app.get("/api/guilds/:guildId/settings", requireManagedGuild, async (req, res) => {
+  try {
+    const channels = await fetchDiscordGuildChannels(req.params.guildId);
+    res.json({ settings: getGuildSettings(req.params.guildId), channels });
+  } catch (error) {
+    console.error("No se pudieron cargar los canales del servidor:", error);
+    // La configuración sigue disponible aunque Discord no responda; así el
+    // administrador no pierde el acceso a los ajustes existentes.
+    res.json({ settings: getGuildSettings(req.params.guildId), channels: [] });
+  }
 });
 
 app.put("/api/guilds/:guildId/settings", requireManagedGuild, (req, res) => {
@@ -215,6 +224,31 @@ app.get("/api/guilds/:guildId/activity", requireManagedGuild, (req, res) => {
 
 app.get("/api/bot/status", (_req, res) => {
   res.json(getBotStatus());
+});
+
+app.post("/api/guilds/:guildId/welcome/test", requireManagedGuild, async (req, res) => {
+  if (!process.env.DISCORD_BOT_TOKEN) {
+    return res.status(503).json({ error: "El token del bot no está configurado en la web" });
+  }
+
+  const cooldownKey = `${req.session.user.id}:${req.params.guildId}`;
+  const lastTestAt = welcomeTestCooldowns.get(cooldownKey) || 0;
+  if (Date.now() - lastTestAt < 10_000) {
+    return res.status(429).json({ error: "Espera unos segundos antes de enviar otra prueba" });
+  }
+
+  try {
+    const settings = getGuildSettings(req.params.guildId);
+    const channel = await resolveWelcomeChannel(req.params.guildId, settings.welcome.channel);
+    if (!channel) return res.status(400).json({ error: "Selecciona un canal de texto válido para la bienvenida" });
+
+    await sendWelcomeTest(channel.id, settings.welcome, req.guild.name, req.session.user.globalName || req.session.user.username);
+    welcomeTestCooldowns.set(cooldownKey, Date.now());
+    res.status(201).json({ ok: true, channel: { id: channel.id, name: channel.name } });
+  } catch (error) {
+    console.error("No se pudo enviar la prueba de bienvenida:", error);
+    res.status(502).json({ error: "Focus no pudo enviar el mensaje. Revisa sus permisos en el canal." });
+  }
 });
 
 // Este endpoint es para el proceso del bot, no para el navegador. Solo expone
@@ -281,6 +315,58 @@ async function fetchDiscordGuild(guildId) {
   if (!rolesResponse.ok) throw new Error(`Discord roles API returned ${rolesResponse.status}`);
   guild.roles = await rolesResponse.json();
   return guild;
+}
+
+async function fetchDiscordGuildChannels(guildId) {
+  if (!process.env.DISCORD_BOT_TOKEN) return [];
+
+  const response = await fetch(`https://discord.com/api/v10/guilds/${guildId}/channels`, {
+    headers: { Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}` },
+    signal: AbortSignal.timeout(10_000)
+  });
+
+  // El bot puede no estar instalado en un servidor que el usuario administra.
+  if (response.status === 403 || response.status === 404) return [];
+  if (!response.ok) throw new Error(`Discord channels API returned ${response.status}`);
+
+  const channels = await response.json();
+  return channels
+    .filter((channel) => channel.type === 0 || channel.type === 5)
+    .map((channel) => ({ id: channel.id, name: channel.name, type: channel.type }))
+    .sort((first, second) => first.name.localeCompare(second.name, "es"));
+}
+
+async function resolveWelcomeChannel(guildId, channelKey) {
+  const channels = await fetchDiscordGuildChannels(guildId);
+  return channels.find((channel) => channel.id === channelKey || channel.name === channelKey) || null;
+}
+
+async function sendWelcomeTest(channelId, welcome, guildName, username) {
+  const message = String(welcome.message || "Bienvenido {user} a {server}!")
+    .replaceAll("{user}", `@${username}`)
+    .replaceAll("{server}", guildName);
+  const body = welcome.format === "embed"
+    ? {
+      embeds: [{
+        color: 0x008CFF,
+        description: message.slice(0, 4_096),
+        footer: { text: `Focus • Prueba en ${guildName}` },
+        timestamp: new Date().toISOString()
+      }],
+      allowed_mentions: { parse: [] }
+    }
+    : { content: `🧪 **Prueba de bienvenida**\n${message.slice(0, 1_900)}`, allowed_mentions: { parse: [] } };
+
+  const response = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(10_000)
+  });
+  if (!response.ok) throw new Error(`Discord message API returned ${response.status}`);
 }
 
 function getDiscordCreationDate(snowflake) {
