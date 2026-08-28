@@ -7,7 +7,11 @@ const EVENT_TYPES = new Set(["message", "command", "moderation", "warn", "member
 const DASHBOARD_PANELS = Object.freeze(["overview", "customizer", "welcome"]);
 const DEFAULT_SETTINGS = Object.freeze({
   customizer: { nickname: "Focus", avatarUrl: "", bannerUrl: "", accentColor: "#5865F2" },
-  welcome: { enabled: true, channel: "general", message: "Bienvenido {user} a {server}!", format: "text" },
+  welcome: {
+    enabled: true, channel: "general", message: "Bienvenido {user} a {server}!", format: "text",
+    card: { enabled: false, font: "Inter", textColor: "#FFFFFF", backgroundColor: "#080B12", overlayOpacity: 45, backgroundImage: "", title: "{user} se unió al servidor", subtitle: "Miembro #{server.member_count}" },
+    dm: { enabled: false, message: "¡Bienvenido a {server}, {user}!" }
+  },
   moderation: { enabled: true, antiSpam: true, filterLinks: false, warnLimit: 3 },
   roles: { enabled: false, defaultRole: "Miembro" },
   automation: { logs: true, joinMessage: true },
@@ -42,11 +46,16 @@ function string(value, fallback, max) { return typeof value === "string" ? value
 function guildId(value) { const id = String(value || "").trim(); if (!id || id.length > 32) throw new Error("guildId no válido"); return id; }
 function normalizeSettings(input) {
   if (!isObject(input)) throw new Error("Configuración no válida");
-  const c = isObject(input.customizer) ? input.customizer : {}, w = isObject(input.welcome) ? input.welcome : {}, m = isObject(input.moderation) ? input.moderation : {}, r = isObject(input.roles) ? input.roles : {}, a = isObject(input.automation) ? input.automation : {}, p = isObject(input.profile) ? input.profile : {};
+  const c = isObject(input.customizer) ? input.customizer : {}, w = isObject(input.welcome) ? input.welcome : {}, card = isObject(w.card) ? w.card : {}, dm = isObject(w.dm) ? w.dm : {}, m = isObject(input.moderation) ? input.moderation : {}, r = isObject(input.roles) ? input.roles : {}, a = isObject(input.automation) ? input.automation : {}, p = isObject(input.profile) ? input.profile : {};
   const limit = Number(m.warnLimit);
   const safeUrl = (value) => { const result = string(value, "", 500); return /^https:\/\//i.test(result) ? result : ""; };
   const color = /^#[0-9a-f]{6}$/i.test(c.accentColor || "") ? c.accentColor.toUpperCase() : DEFAULT_SETTINGS.customizer.accentColor;
-  return { customizer: { nickname: string(c.nickname, DEFAULT_SETTINGS.customizer.nickname, 32), avatarUrl: safeUrl(c.avatarUrl), bannerUrl: safeUrl(c.bannerUrl), accentColor: color }, welcome: { enabled: typeof w.enabled === "boolean" ? w.enabled : true, channel: string(w.channel, "general", 100), message: string(w.message, DEFAULT_SETTINGS.welcome.message, 1700), format: w.format === "embed" ? "embed" : "text" }, moderation: { enabled: typeof m.enabled === "boolean" ? m.enabled : true, antiSpam: typeof m.antiSpam === "boolean" ? m.antiSpam : true, filterLinks: Boolean(m.filterLinks), warnLimit: Number.isInteger(limit) && limit >= 1 && limit <= 20 ? limit : 3 }, roles: { enabled: Boolean(r.enabled), defaultRole: string(r.defaultRole, "Miembro", 100) }, automation: { logs: typeof a.logs === "boolean" ? a.logs : true, joinMessage: typeof a.joinMessage === "boolean" ? a.joinMessage : true }, profile: { description: string(p.description, "", 500), invite: string(p.invite, "", 200) } };
+  const cardImage = string(card.backgroundImage, "", 6_000_000);
+  const safeCardImage = /^https:\/\//i.test(cardImage) || /^data:image\/(?:png|jpeg|webp);base64,/i.test(cardImage) ? cardImage : "";
+  const cardColor = (value, fallback) => /^#[0-9a-f]{6}$/i.test(value || "") ? value.toUpperCase() : fallback;
+  const overlayOpacity = Math.min(90, Math.max(0, Number(card.overlayOpacity) || 0));
+  const font = ["Inter", "Poppins", "Montserrat", "Roboto", "Serif", "Monospace"].includes(card.font) ? card.font : "Inter";
+  return { customizer: { nickname: string(c.nickname, DEFAULT_SETTINGS.customizer.nickname, 32), avatarUrl: safeUrl(c.avatarUrl), bannerUrl: safeUrl(c.bannerUrl), accentColor: color }, welcome: { enabled: typeof w.enabled === "boolean" ? w.enabled : true, channel: string(w.channel, "general", 100), message: string(w.message, DEFAULT_SETTINGS.welcome.message, 2000), format: w.format === "embed" ? "embed" : "text", card: { enabled: Boolean(card.enabled), font, textColor: cardColor(card.textColor, "#FFFFFF"), backgroundColor: cardColor(card.backgroundColor, "#080B12"), overlayOpacity, backgroundImage: safeCardImage, title: string(card.title, DEFAULT_SETTINGS.welcome.card.title, 100), subtitle: string(card.subtitle, DEFAULT_SETTINGS.welcome.card.subtitle, 100) }, dm: { enabled: Boolean(dm.enabled), message: string(dm.message, DEFAULT_SETTINGS.welcome.dm.message, 2000) } }, moderation: { enabled: typeof m.enabled === "boolean" ? m.enabled : true, antiSpam: typeof m.antiSpam === "boolean" ? m.antiSpam : true, filterLinks: Boolean(m.filterLinks), warnLimit: Number.isInteger(limit) && limit >= 1 && limit <= 20 ? limit : 3 }, roles: { enabled: Boolean(r.enabled), defaultRole: string(r.defaultRole, "Miembro", 100) }, automation: { logs: typeof a.logs === "boolean" ? a.logs : true, joinMessage: typeof a.joinMessage === "boolean" ? a.joinMessage : true }, profile: { description: string(p.description, "", 500), invite: string(p.invite, "", 200) } };
 }
 
 async function recordEvent({ guildId: id, eventType, metadata = null, createdAt = null }) {

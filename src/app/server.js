@@ -28,7 +28,7 @@ app.use((_, res, next) => {
   });
   next();
 });
-app.use(express.json({ limit: "32kb" }));
+app.use(express.json({ limit: "7mb" }));
 app.use(session({
   name: "focusbot.sid",
   secret: process.env.SESSION_SECRET,

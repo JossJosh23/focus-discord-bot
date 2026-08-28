@@ -1,4 +1,5 @@
-const { EmbedBuilder } = require("discord.js");
+const { AttachmentBuilder, EmbedBuilder } = require("discord.js");
+const sharp = require("sharp");
 
 const statsApiUrl = (process.env.FOCUS_BOT_STATS_API_URL || "").replace(/\/$/, "");
 const eventToken = process.env.FOCUS_BOT_EVENT_INGEST_TOKEN;
@@ -60,9 +61,51 @@ async function findWelcomeChannel(guild, configuredChannel) {
     : null;
 }
 
+function welcomeVariables(value, member) {
+  return String(value || "")
+    .replaceAll("{user}", `<@${member.id}>`)
+    .replaceAll("{server}", member.guild.name)
+    .replaceAll("{server.member_count}", String(member.guild.memberCount || 0));
+}
+
+function xml(value) {
+  return String(value || "").replace(/[<>&"']/g, (character) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&apos;" })[character]);
+}
+
+async function imageDataUri(source) {
+  if (!source) return "";
+  if (/^data:image\/(?:png|jpeg|webp);base64,/i.test(source)) return source;
+  const response = await fetch(source, { signal: AbortSignal.timeout(10_000) });
+  if (!response.ok) return "";
+  const type = String(response.headers.get("content-type") || "image/png").split(";")[0];
+  const buffer = Buffer.from(await response.arrayBuffer());
+  return `data:${type};base64,${buffer.toString("base64")}`;
+}
+
+async function renderWelcomeCard(member, card) {
+  const avatar = await imageDataUri(member.displayAvatarURL({ extension: "png", size: 256 }));
+  const background = await imageDataUri(card.backgroundImage);
+  const overlay = Math.round((Math.min(90, Math.max(0, Number(card.overlayOpacity) || 0)) / 100) * 255).toString(16).padStart(2, "0");
+  const fontFamily = ["Inter", "Poppins", "Montserrat", "Roboto"].includes(card.font) ? `${card.font}, Arial, sans-serif` : card.font === "Monospace" ? "monospace" : "Georgia, serif";
+  const title = welcomeVariables(card.title, member).replaceAll(`<@${member.id}>`, member.displayName);
+  const subtitle = welcomeVariables(card.subtitle, member).replaceAll(`<@${member.id}>`, member.displayName);
+  const backgroundLayer = background ? `<image href="${background}" width="1000" height="500" preserveAspectRatio="xMidYMid slice"/>` : `<rect width="1000" height="500" fill="${card.backgroundColor}"/>`;
+  const svg = `<svg width="1000" height="500" xmlns="http://www.w3.org/2000/svg"><defs><clipPath id="avatar"><circle cx="500" cy="185" r="82"/></clipPath></defs>${backgroundLayer}<rect width="1000" height="500" fill="#000000${overlay}"/>${avatar ? `<image href="${avatar}" x="418" y="103" width="164" height="164" clip-path="url(#avatar)" preserveAspectRatio="xMidYMid slice"/>` : ""}<circle cx="500" cy="185" r="84" fill="none" stroke="${card.textColor}" stroke-width="5"/><text x="500" y="330" text-anchor="middle" fill="${card.textColor}" font-family="${xml(fontFamily)}" font-size="42" font-weight="700">${xml(title)}</text><text x="500" y="380" text-anchor="middle" fill="${card.textColor}" opacity=".78" font-family="${xml(fontFamily)}" font-size="25">${xml(subtitle)}</text></svg>`;
+  return sharp(Buffer.from(svg)).png().toBuffer();
+}
+
 async function sendWelcome(member, settings) {
   const welcome = settings?.welcome;
-  if (!welcome?.enabled || !settings.automation?.joinMessage) return;
+  if (!welcome) return;
+
+  if (welcome.dm?.enabled) {
+    const dmContent = welcomeVariables(welcome.dm.message, member).slice(0, 2_000);
+    await member.send({ content: dmContent, allowedMentions: { users: [member.id] } }).catch(() => null);
+  }
+
+  const sendPublicMessage = welcome.enabled && settings.automation?.joinMessage;
+  const sendCard = welcome.card?.enabled;
+  if (!sendPublicMessage && !sendCard) return;
 
   const channelKey = String(welcome.channel || "").trim();
   const channel = await findWelcomeChannel(member.guild, channelKey);
@@ -71,11 +114,9 @@ async function sendWelcome(member, settings) {
     throw new Error(`No se encontro el canal de bienvenida "${channelKey}" en ${member.guild.name}`);
   }
 
-  const content = String(welcome.message || "Bienvenido {user} a {server}!")
-    .replaceAll("{user}", `<@${member.id}>`)
-    .replaceAll("{server}", member.guild.name);
+  const content = welcomeVariables(welcome.message || "Bienvenido {user} a {server}!", member);
 
-  if (welcome.format === "embed") {
+  if (sendPublicMessage && welcome.format === "embed") {
     const customizer = settings.customizer || {};
     const accentColor = /^#[0-9a-f]{6}$/i.test(customizer.accentColor || "")
       ? Number.parseInt(customizer.accentColor.slice(1), 16)
@@ -88,10 +129,14 @@ async function sendWelcome(member, settings) {
     if (customizer.avatarUrl) embed.setThumbnail(customizer.avatarUrl);
     if (customizer.bannerUrl) embed.setImage(customizer.bannerUrl);
     await channel.send({ embeds: [embed], allowedMentions: { users: [member.id] } });
-    return;
+  } else if (sendPublicMessage) {
+    await channel.send({ content: content.slice(0, 2_000), allowedMentions: { users: [member.id] } });
   }
 
-  await channel.send({ content: content.slice(0, 2_000), allowedMentions: { users: [member.id] } });
+  if (sendCard) {
+    const image = await renderWelcomeCard(member, welcome.card);
+    await channel.send({ files: [new AttachmentBuilder(image, { name: `bienvenida-${member.id}.png` })] });
+  }
 }
 
 async function assignDefaultRole(member, settings) {

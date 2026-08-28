@@ -203,7 +203,7 @@ function selectGuild(guild) {
 function defaultConfiguration() {
   return {
     customizer: { nickname: "Focus", avatarUrl: "", bannerUrl: "", accentColor: "#5865F2" },
-    welcome: { enabled: true, channel: "general", message: "Bienvenido {user} a {server}!", format: "text" },
+    welcome: { enabled: true, channel: "general", message: "Bienvenido {user} a {server}!", format: "text", card: { enabled: false, font: "Inter", textColor: "#FFFFFF", backgroundColor: "#080B12", overlayOpacity: 45, backgroundImage: "", title: "{user} se unió al servidor", subtitle: "Miembro #{server.member_count}" }, dm: { enabled: false, message: "¡Bienvenido a {server}, {user}!" } },
     moderation: { enabled: true, antiSpam: true, filterLinks: false, warnLimit: 3 },
     roles: { enabled: false, defaultRole: "Miembro" },
     automation: { logs: true, joinMessage: true },
@@ -260,6 +260,29 @@ function viewContent(view, content) {
   if (target) target.innerHTML = content;
 }
 
+function renderWelcomeWorkspace(c) {
+  const card = c.welcome.card || defaultConfiguration().welcome.card;
+  const dm = c.welcome.dm || defaultConfiguration().welcome.dm;
+  return `<section class="welcome-studio">
+    <div class="welcome-studio-heading"><div><p class="eyebrow">COMUNIDAD</p><h1>Bienvenidas</h1><p>Diseña la experiencia que recibirá cada persona al entrar a ${escapeHtml(selectedGuildName.textContent)}.</p></div><span class="welcome-live-badge"><i></i> Sincronización en vivo</span></div>
+    <form data-settings-form="community" class="welcome-studio-form">
+      <article class="welcome-module">
+        <header><div><span class="module-step">01</span><h2>Mensaje de bienvenida</h2><p>Publica un mensaje automático en el canal que elijas.</p></div><label class="focus-switch"><input data-config="welcome.enabled" type="checkbox" ${c.welcome.enabled ? "checked" : ""}><i></i></label></header>
+        <div class="welcome-module-body">
+          <label class="welcome-field"><span>Canal de destino <b>*</b></span><input data-config="welcome.channel" value="${escapeHtml(c.welcome.channel)}" placeholder="Selecciona un canal"></label>
+          <div class="welcome-editor-grid"><div class="welcome-editor"><div class="message-format-tabs"><button type="button" data-format="text" class="${c.welcome.format === "text" ? "active" : ""}">Mensaje de texto</button><button type="button" data-format="embed" class="${c.welcome.format === "embed" ? "active" : ""}">Mensaje embed</button><input type="hidden" data-config="welcome.format" value="${escapeHtml(c.welcome.format)}"></div><div class="variable-chips"><span>Insertar variable</span><button type="button" data-variable="{user}">{user}</button><button type="button" data-variable="{server}">{server}</button><button type="button" data-variable="{server.member_count}">{server.member_count}</button></div><label class="welcome-composer"><textarea data-config="welcome.message" rows="7" maxlength="2000">${escapeHtml(c.welcome.message)}</textarea><small><span>El mensaje se actualiza en la vista previa.</span><b id="welcomeMessageCount">${c.welcome.message.length} / 2000</b></small></label></div><aside class="discord-message-preview"><p>VISTA PREVIA</p><div><span class="preview-bot-avatar">F</span><section><strong>Focus <small>APP</small></strong><p id="welcomePreviewMessage"></p></section></div></aside></div>
+        </div>
+      </article>
+      <article class="welcome-module welcome-card-module">
+        <header><div><span class="module-step">02</span><h2>Tarjeta de bienvenida</h2><p>Genera una imagen personalizada para cada nuevo miembro.</p></div><label class="focus-switch"><input data-config="welcome.card.enabled" type="checkbox" ${card.enabled ? "checked" : ""}><i></i></label></header>
+        <div class="welcome-card-layout"><div class="welcome-canvas" id="welcomeCardPreview" style="--card-bg:${escapeHtml(card.backgroundColor)};--card-text:${escapeHtml(card.textColor)};--card-overlay:${Number(card.overlayOpacity) / 100};--card-font:${escapeHtml(card.font)}"><img class="welcome-canvas-bg" ${card.backgroundImage ? `src="${escapeHtml(card.backgroundImage)}"` : "hidden"} alt=""><div class="welcome-canvas-overlay"></div><div class="welcome-canvas-content"><img src="${escapeHtml(navbarUserAvatar.src || defaultAvatar)}" alt="Avatar de muestra"><h3 id="welcomeCardTitle"></h3><p id="welcomeCardSubtitle"></p></div></div><div class="welcome-card-controls"><div class="control-grid"><label><span>Fuente</span><select data-config="welcome.card.font">${["Inter", "Poppins", "Montserrat", "Roboto", "Serif", "Monospace"].map((font) => `<option ${card.font === font ? "selected" : ""}>${font}</option>`).join("")}</select></label><label><span>Color del texto</span><input data-config="welcome.card.textColor" type="color" value="${escapeHtml(card.textColor)}"></label><label><span>Color de fondo</span><input data-config="welcome.card.backgroundColor" type="color" value="${escapeHtml(card.backgroundColor)}"></label><label><span>Overlay <b id="overlayValue">${card.overlayOpacity}%</b></span><input data-config="welcome.card.overlayOpacity" type="range" min="0" max="90" value="${card.overlayOpacity}"></label></div><label class="welcome-field"><span>Título</span><input data-config="welcome.card.title" maxlength="100" value="${escapeHtml(card.title)}"></label><label class="welcome-field"><span>Subtítulo</span><input data-config="welcome.card.subtitle" maxlength="100" value="${escapeHtml(card.subtitle)}"></label><input data-config="welcome.card.backgroundImage" type="hidden" value="${escapeHtml(card.backgroundImage)}"><label class="background-dropzone" id="welcomeBackgroundDropzone"><input id="welcomeBackgroundFile" type="file" accept="image/png,image/jpeg,image/webp"><span>↥</span><strong>Arrastra una imagen o haz clic</strong><small>PNG, JPG o WEBP · máximo 4 MB</small></label></div></div>
+      </article>
+      <article class="welcome-module dm-module"><header><div><span class="module-step">03</span><h2>Mensaje privado</h2><p>Envía una bienvenida directamente al nuevo miembro.</p></div><label class="focus-switch"><input data-config="welcome.dm.enabled" type="checkbox" ${dm.enabled ? "checked" : ""}><i></i></label></header><div class="welcome-module-body"><label class="welcome-composer"><textarea data-config="welcome.dm.message" rows="4" maxlength="2000">${escapeHtml(dm.message)}</textarea><small><span>Variables disponibles: {user}, {server}</span><b>${dm.message.length} / 2000</b></small></label></div></article>
+      <footer class="welcome-studio-actions"><span>Los cambios se guardan exclusivamente para este servidor.</span><button type="button" class="welcome-test-button">Enviar prueba</button><button class="primary-button">Guardar cambios</button></footer>
+    </form>
+  </section>`;
+}
+
 function renderManagementViews() {
   const c = guildConfiguration || defaultConfiguration();
   const customizer = c.customizer || defaultConfiguration().customizer;
@@ -271,6 +294,7 @@ function renderManagementViews() {
   viewContent("settings", `<div class="dashboard-heading"><div><p class="eyebrow">Preferencias</p><h1>Perfil del servidor</h1></div></div><form class="settings-panel" data-settings-form="profile"><label><span>Descripcion</span><textarea name="description" rows="3" placeholder="Describe tu comunidad">${escapeHtml(c.profile.description)}</textarea></label><label><span>Invitacion de Discord</span><input name="invite" value="${escapeHtml(c.profile.invite)}" placeholder="https://discord.gg/..." type="url"></label><button class="primary-button">Guardar perfil</button></form>`);
   viewContent("api", `<div class="dashboard-heading"><div><p class="eyebrow">Documentacion</p><h1>API y eventos</h1><p class="dashboard-subtitle">Conecta tu bot para ver actividad real en este panel.</p></div></div><div class="docs-grid"><article><h3>Registrar evento</h3><code>POST /api/events</code><p>Incluye el encabezado <code>x-event-token</code> y los campos guildId y eventType.</p></article><article><h3>Eventos disponibles</h3><p>message, member_join, member_leave, moderation y warn.</p></article><article><h3>Configuracion</h3><code>PUT /api/guilds/:id/settings</code><p>Disponible para administradores autenticados.</p></article></div>`);
   viewContent("premium", `<div class="dashboard-heading"><div><p class="eyebrow">Focus</p><h1>Premium</h1><p class="dashboard-subtitle">Planes para comunidades que necesitan mas automatizacion.</p></div></div><div class="docs-grid plans-grid"><article><h3>Gratis</h3><p>Moderacion y bienvenida esenciales.</p><strong>$0 / mes</strong></article><article class="featured-plan"><h3>Premium</h3><p>Logs avanzados, automatizaciones y soporte prioritario.</p><strong>$4.99 / mes</strong></article><article><h3>Comunidades</h3><p>Funciones a medida para servidores grandes.</p><strong>Contactanos</strong></article></div>`);
+  viewContent("welcome", renderWelcomeWorkspace(c));
   renderWelcomeChannelSelector(c.welcome.channel);
   bindCustomizerPreview();
   bindWelcomePreview();
@@ -335,6 +359,66 @@ function renderWelcomeChannelSelector(selectedChannel) {
 }
 
 function bindWelcomePreview() {
+  const form = document.querySelector('[data-view="welcome"] [data-settings-form="community"]');
+  if (!form) return;
+  const composer = form.querySelector('[data-config="welcome.message"]');
+  const preview = form.querySelector("#welcomePreviewMessage");
+  const counter = form.querySelector("#welcomeMessageCount");
+  const formatInput = form.querySelector('[data-config="welcome.format"]');
+  const replaceVariables = (value) => String(value || "").replaceAll("{user}", "@nuevo-miembro").replaceAll("{server}", selectedGuildName.textContent || "tu servidor").replaceAll("{server.member_count}", bannerMemberCount.textContent || "1");
+
+  form.querySelectorAll("[data-format]").forEach((button) => button.addEventListener("click", () => {
+    formatInput.value = button.dataset.format;
+    form.querySelectorAll("[data-format]").forEach((item) => item.classList.toggle("active", item === button));
+    form.querySelector(".discord-message-preview").classList.toggle("embed-preview", button.dataset.format === "embed");
+  }));
+  form.querySelectorAll("[data-variable]").forEach((button) => button.addEventListener("click", () => {
+    composer.setRangeText(button.dataset.variable, composer.selectionStart, composer.selectionEnd, "end");
+    composer.dispatchEvent(new Event("input"));
+    composer.focus();
+  }));
+
+  const updatePreview = () => {
+    preview.textContent = replaceVariables(composer.value);
+    counter.textContent = `${composer.value.length} / 2000`;
+    form.querySelector("#welcomeCardTitle").textContent = replaceVariables(form.querySelector('[data-config="welcome.card.title"]').value);
+    form.querySelector("#welcomeCardSubtitle").textContent = replaceVariables(form.querySelector('[data-config="welcome.card.subtitle"]').value);
+    const canvas = form.querySelector("#welcomeCardPreview");
+    const overlay = form.querySelector('[data-config="welcome.card.overlayOpacity"]');
+    canvas.style.setProperty("--card-bg", form.querySelector('[data-config="welcome.card.backgroundColor"]').value);
+    canvas.style.setProperty("--card-text", form.querySelector('[data-config="welcome.card.textColor"]').value);
+    canvas.style.setProperty("--card-overlay", Number(overlay.value) / 100);
+    canvas.style.setProperty("--card-font", form.querySelector('[data-config="welcome.card.font"]').value);
+    form.querySelector("#overlayValue").textContent = `${overlay.value}%`;
+  };
+  form.querySelectorAll("textarea, input, select").forEach((input) => input.addEventListener("input", updatePreview));
+
+  const fileInput = form.querySelector("#welcomeBackgroundFile");
+  const dropzone = form.querySelector("#welcomeBackgroundDropzone");
+  const backgroundInput = form.querySelector('[data-config="welcome.card.backgroundImage"]');
+  const useBackgroundFile = (file) => {
+    if (!file || !["image/png", "image/jpeg", "image/webp"].includes(file.type)) return showToast("Usa una imagen PNG, JPG o WEBP", true);
+    if (file.size > 4 * 1024 * 1024) return showToast("La imagen supera los 4 MB", true);
+    const reader = new FileReader();
+    reader.onload = () => { backgroundInput.value = reader.result; const image = form.querySelector(".welcome-canvas-bg"); image.src = reader.result; image.hidden = false; showToast("Fondo cargado"); };
+    reader.readAsDataURL(file);
+  };
+  fileInput.addEventListener("change", () => useBackgroundFile(fileInput.files[0]));
+  ["dragenter", "dragover"].forEach((name) => dropzone.addEventListener(name, (event) => { event.preventDefault(); dropzone.classList.add("dragging"); }));
+  ["dragleave", "drop"].forEach((name) => dropzone.addEventListener(name, (event) => { event.preventDefault(); dropzone.classList.remove("dragging"); }));
+  dropzone.addEventListener("drop", (event) => useBackgroundFile(event.dataTransfer.files[0]));
+
+  const testButton = form.querySelector(".welcome-test-button");
+  testButton.addEventListener("click", async () => {
+    applyCommunitySettings(form);
+    if (isLocalEnvironment) return showToast("Modo local: la vista previa está activa; despliega para enviar a Discord");
+    testButton.disabled = true; testButton.textContent = "Enviando...";
+    try { await saveGuildConfiguration("welcome"); const response = await fetch(`/api/guilds/${encodeURIComponent(activeGuildId)}/welcome/test`, { method: "POST", credentials: "same-origin" }); const data = await response.json(); if (!response.ok) throw new Error(data.error); showToast(`Prueba enviada a #${data.channel.name}`); } catch (error) { showToast(error.message || "No se pudo enviar la prueba", true); } finally { testButton.disabled = false; testButton.textContent = "Enviar prueba"; }
+  });
+  updatePreview();
+}
+
+function bindLegacyWelcomePreview() {
   const composer = document.querySelector('[data-view="welcome"] [data-config="welcome.message"]');
   const preview = document.querySelector("#welcomePreviewMessage");
   const counter = document.querySelector("#welcomeMessageCount");
@@ -410,6 +494,17 @@ function bindWelcomePreview() {
 }
 
 function applyCommunitySettings(form) {
+  form.querySelectorAll("[data-config]").forEach((input) => {
+    const path = input.dataset.config.split(".");
+    let target = guildConfiguration;
+    path.slice(0, -1).forEach((key) => { if (!target[key]) target[key] = {}; target = target[key]; });
+    target[path.at(-1)] = input.type === "checkbox" ? input.checked : input.type === "range" ? Number(input.value) : input.value.trim();
+  });
+  const welcomeToggle = form.querySelector('[data-config="welcome.enabled"]');
+  if (welcomeToggle) guildConfiguration.automation.joinMessage = welcomeToggle.checked;
+}
+
+function applyLegacyCommunitySettings(form) {
   form.closest(".welcome-message-workspace").querySelectorAll("[data-config]").forEach((input) => {
     const [section, property] = input.dataset.config.split(".");
     if (!section || !property || !guildConfiguration[section]) return;
