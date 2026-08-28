@@ -2,12 +2,16 @@ const crypto = require("crypto");
 const express = require("express");
 const session = require("express-session");
 const path = require("path");
-const { getGuildStats, recordEvent, getGuildSettings, saveGuildSettings, getGuildActivity, recordBotHeartbeat, getBotStatus } = require("../data/database");
+const {
+  getGuildStats, recordEvent, getGuildSettings, saveGuildSettings, getGuildActivity, recordBotHeartbeat, getBotStatus,
+  DASHBOARD_PANELS, getDashboardUser, listDashboardUsers, saveDashboardUser, deleteDashboardUser
+} = require("../data/database");
 
 const app = express();
 const port = Number(process.env.PORT) || 3000;
 const publicDir = path.join(__dirname, "..", "..", "public");
 const welcomeTestCooldowns = new Map();
+const ownerIds = new Set((process.env.FOCUS_OWNER_IDS || "").split(",").map((id) => id.trim()).filter((id) => /^\d{17,20}$/.test(id)));
 
 app.set("trust proxy", 1);
 
@@ -143,19 +147,66 @@ function hasAdministratorPermission(permissions) {
   }
 }
 
+function getDashboardAccess(discordId) {
+  if (ownerIds.has(String(discordId))) {
+    return { role: "owner", panels: [...DASHBOARD_PANELS], canManageUsers: true };
+  }
+  const user = getDashboardUser(discordId);
+  return { role: "developer", panels: user?.panels || [], canManageUsers: false };
+}
+
+function requireDashboardPanel(panel) {
+  return (req, res, next) => {
+    if (!req.session.user) return res.status(401).json({ authenticated: false });
+    const access = getDashboardAccess(req.session.user.id);
+    if (!access.panels.includes(panel)) return res.status(403).json({ error: "No tienes acceso a este panel" });
+    req.dashboardAccess = access;
+    next();
+  };
+}
+
+function requireOwner(req, res, next) {
+  if (!req.session.user) return res.status(401).json({ authenticated: false });
+  const access = getDashboardAccess(req.session.user.id);
+  if (!access.canManageUsers) return res.status(403).json({ error: "Solo un propietario puede administrar accesos" });
+  req.dashboardAccess = access;
+  next();
+}
+
 app.get("/api/me", (req, res) => {
   if (!req.session.user) return res.status(401).json({ authenticated: false });
+  const access = getDashboardAccess(req.session.user.id);
   const user = {
     ...req.session.user,
+    access,
     guilds: (req.session.user.guilds || []).filter(
-      (guild) => Boolean(guild.owner) || hasAdministratorPermission(guild.permissions)
+      (guild) => access.panels.length > 0 && (Boolean(guild.owner) || hasAdministratorPermission(guild.permissions))
     )
   };
   req.session.user = user;
   res.json({ authenticated: true, user });
 });
 
-app.get("/api/guilds/:guildId/stats", async (req, res) => {
+app.get("/api/developers", requireOwner, (_req, res) => {
+  res.json({ users: listDashboardUsers(), panels: DASHBOARD_PANELS });
+});
+
+app.put("/api/developers/:discordId", requireOwner, (req, res) => {
+  try {
+    const discordId = String(req.params.discordId || "");
+    if (ownerIds.has(discordId)) return res.status(400).json({ error: "Los propietarios se administran con FOCUS_OWNER_IDS" });
+    res.json({ user: saveDashboardUser({ discordId, displayName: req.body?.displayName, panels: req.body?.panels }) });
+  } catch (error) {
+    res.status(400).json({ error: error.message || "Usuario no válido" });
+  }
+});
+
+app.delete("/api/developers/:discordId", requireOwner, (req, res) => {
+  if (ownerIds.has(String(req.params.discordId))) return res.status(400).json({ error: "Los propietarios se administran con FOCUS_OWNER_IDS" });
+  res.json({ deleted: deleteDashboardUser(req.params.discordId) });
+});
+
+app.get("/api/guilds/:guildId/stats", requireDashboardPanel("overview"), async (req, res) => {
   if (!req.session.user) return res.status(401).json({ authenticated: false });
 
   const guild = (req.session.user.guilds || []).find((item) => item.id === req.params.guildId);
@@ -197,7 +248,7 @@ function requireManagedGuild(req, res, next) {
   next();
 }
 
-app.get("/api/guilds/:guildId/settings", requireManagedGuild, async (req, res) => {
+app.get("/api/guilds/:guildId/settings", requireDashboardPanel("welcome"), requireManagedGuild, async (req, res) => {
   const settings = getGuildSettings(req.params.guildId);
   if (!process.env.DISCORD_BOT_TOKEN) {
     return res.json({
@@ -226,14 +277,14 @@ app.get("/api/guilds/:guildId/settings", requireManagedGuild, async (req, res) =
   }
 });
 
-app.put("/api/guilds/:guildId/settings", requireManagedGuild, (req, res) => {
+app.put("/api/guilds/:guildId/settings", requireDashboardPanel("welcome"), requireManagedGuild, (req, res) => {
   if (!req.body || typeof req.body !== "object" || Array.isArray(req.body)) {
     return res.status(400).json({ error: "Configuración no válida" });
   }
   res.json({ settings: saveGuildSettings(req.params.guildId, req.body) });
 });
 
-app.get("/api/guilds/:guildId/activity", requireManagedGuild, (req, res) => {
+app.get("/api/guilds/:guildId/activity", requireDashboardPanel("overview"), requireManagedGuild, (req, res) => {
   res.json({ activity: getGuildActivity(req.params.guildId) });
 });
 
@@ -241,7 +292,7 @@ app.get("/api/bot/status", (_req, res) => {
   res.json(getBotStatus());
 });
 
-app.post("/api/guilds/:guildId/welcome/test", requireManagedGuild, async (req, res) => {
+app.post("/api/guilds/:guildId/welcome/test", requireDashboardPanel("welcome"), requireManagedGuild, async (req, res) => {
   if (!process.env.DISCORD_BOT_TOKEN) {
     return res.status(503).json({ error: "El token del bot no está configurado en la web" });
   }

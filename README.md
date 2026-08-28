@@ -47,6 +47,7 @@ REDIRECT_URI=https://soniabot.playorch.tech/auth/callback
 SESSION_SECRET=una_clave_larga_y_aleatoria
 DISCORD_BOT_TOKEN=token_privado_del_bot
 EVENT_INGEST_TOKEN=token_privado_para_eventos
+FOCUS_OWNER_IDS=tu_id_de_discord
 DATABASE_PATH=soniabot.sqlite
 NODE_ENV=production
 ```
@@ -73,3 +74,7 @@ El bot envia un heartbeat cada 45 segundos y registra mensajes, entradas, salida
 4. Pulsa **Enviar prueba a Discord** para verificar el canal y los permisos.
 
 El bot necesita permisos **Ver canales** y **Enviar mensajes** en el canal configurado. Nunca subas `.env`, tokens ni la base de datos al repositorio.
+
+## Equipo de desarrollo
+
+Configura `FOCUS_OWNER_IDS` con tu ID de Discord (o varios IDs separados por comas) en el entorno de la web. Solo esos propietarios ven **Equipo dev** y pueden añadir o retirar accesos por ID de Discord. Cada desarrollador puede recibir acceso independiente a **Visión general** y **Bienvenidas**.

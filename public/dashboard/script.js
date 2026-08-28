@@ -6,6 +6,7 @@ const mockUser = {
   username: "TheGeorgex23",
   globalName: "TheGeorgex23",
   avatarUrl: defaultAvatar,
+  access: { role: "owner", panels: ["overview", "welcome"], canManageUsers: true },
   guilds: [
     {
       id: "mock-patriot-development",
@@ -71,6 +72,83 @@ let activeGuildId = null;
 let guildConfiguration = null;
 let guildChannels = [];
 let guildChannelsNotice = null;
+let dashboardAccess = { role: "developer", panels: [], canManageUsers: false };
+
+function applyDashboardAccess(user) {
+  dashboardAccess = user.access || dashboardAccess;
+  const allowedPanels = new Set(dashboardAccess.panels || []);
+  document.querySelectorAll(".sidebar-link[data-section]").forEach((link) => {
+    const section = link.dataset.section;
+    const visible = section === "developers" ? dashboardAccess.canManageUsers : allowedPanels.has(section);
+    link.hidden = !visible;
+  });
+
+  const activeLink = document.querySelector(".sidebar-link.active");
+  if (activeLink?.hidden) {
+    const firstVisible = document.querySelector(".sidebar-link[data-section]:not([hidden])");
+    firstVisible?.click();
+  }
+}
+
+function renderDevelopers(users = [], panels = ["overview", "welcome"]) {
+  const target = document.querySelector("#developersContent");
+  if (!target) return;
+  const panelLabels = { overview: "Visión general", welcome: "Bienvenidas" };
+  target.innerHTML = `<div class="developer-access-panel"><form id="developerForm" class="developer-form"><div><p class="eyebrow">Nuevo acceso</p><h2>Invitar desarrollador</h2><p>Usa su ID de Discord. Podrás modificarlo más tarde.</p></div><label>Nombre de referencia<input name="displayName" maxlength="80" placeholder="Ej. Moderador técnico"></label><label>ID de Discord<input name="discordId" inputmode="numeric" pattern="\\d{17,20}" required placeholder="123456789012345678"></label><fieldset><legend>Paneles permitidos</legend>${panels.map((panel) => `<label class="developer-check"><input type="checkbox" name="panels" value="${panel}"><span>${panelLabels[panel] || panel}</span></label>`).join("")}</fieldset><button class="primary-button" type="submit">Guardar acceso</button><button class="developer-cancel" type="button" hidden>Cancelar edición</button></form><div class="developer-list"><div class="developer-list-head"><div><p class="eyebrow">Accesos activos</p><h2>Equipo autorizado</h2></div><span>${users.length} usuario${users.length === 1 ? "" : "s"}</span></div>${users.length ? users.map((user) => `<article class="developer-user" data-developer-id="${user.discordId}"><div class="developer-avatar">${escapeHtml((user.displayName || "D").charAt(0).toUpperCase())}</div><div><strong>${escapeHtml(user.displayName || "Sin nombre")}</strong><code>${user.discordId}</code></div><div class="developer-panels">${user.panels.length ? user.panels.map((panel) => `<span>${panelLabels[panel] || panel}</span>`).join("") : "<small>Sin paneles</small>"}</div><button type="button" class="developer-edit">Editar</button><button type="button" class="developer-remove">Quitar</button></article>`).join("") : "<p class=\"developer-empty\">Aún no has autorizado a nadie.</p>"}</div></div>`;
+
+  const form = target.querySelector("#developerForm");
+  const cancel = form.querySelector(".developer-cancel");
+  const resetForm = () => { form.reset(); form.elements.discordId.disabled = false; form.dataset.editingId = ""; cancel.hidden = true; form.querySelector("button[type=submit]").textContent = "Guardar acceso"; };
+  cancel.addEventListener("click", resetForm);
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const formData = new FormData(form);
+    const discordId = String(form.dataset.editingId || formData.get("discordId") || "").trim();
+    const panelsForUser = formData.getAll("panels");
+    try {
+      const response = await fetch(`/api/developers/${encodeURIComponent(discordId)}`, { method: "PUT", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ displayName: formData.get("displayName"), panels: panelsForUser }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "No se pudo guardar el acceso");
+      showToast("Acceso actualizado");
+      loadDevelopers();
+    } catch (error) { showToast(error.message, true); }
+  });
+  target.querySelectorAll(".developer-edit").forEach((button) => button.addEventListener("click", () => {
+    const id = button.closest(".developer-user").dataset.developerId;
+    const user = users.find((item) => item.discordId === id);
+    if (!user) return;
+    form.dataset.editingId = user.discordId;
+    form.elements.discordId.value = user.discordId;
+    form.elements.discordId.disabled = true;
+    form.elements.displayName.value = user.displayName || "";
+    form.querySelectorAll('input[name="panels"]').forEach((input) => { input.checked = user.panels.includes(input.value); });
+    cancel.hidden = false;
+    form.querySelector("button[type=submit]").textContent = "Actualizar acceso";
+    form.scrollIntoView({ behavior: "smooth", block: "center" });
+  }));
+  target.querySelectorAll(".developer-remove").forEach((button) => button.addEventListener("click", async () => {
+    const id = button.closest(".developer-user").dataset.developerId;
+    if (!window.confirm("¿Quitar el acceso de este desarrollador?")) return;
+    try {
+      const response = await fetch(`/api/developers/${encodeURIComponent(id)}`, { method: "DELETE", credentials: "same-origin" });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "No se pudo quitar el acceso");
+      showToast("Acceso eliminado");
+      loadDevelopers();
+    } catch (error) { showToast(error.message, true); }
+  }));
+}
+
+async function loadDevelopers() {
+  if (!dashboardAccess.canManageUsers) return;
+  if (isLocalEnvironment) return renderDevelopers();
+  try {
+    const response = await fetch("/api/developers", { credentials: "same-origin" });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "No se pudieron cargar los accesos");
+    renderDevelopers(result.users, result.panels);
+  } catch (error) { showToast(error.message, true); }
+}
 
 function selectGuild(guild) {
   activeGuildId = guild.id;
@@ -520,6 +598,7 @@ function setupNavigation() {
       link.classList.add("active");
       const view = document.querySelector(`[data-view="${link.dataset.section}"]`);
       if (view) view.classList.add("active");
+      if (link.dataset.section === "developers") loadDevelopers();
       dashboardSidebar.classList.remove("open");
     });
   });
@@ -559,8 +638,10 @@ async function loadDashboard() {
       const user = storedUser || mockUser;
       if (!storedUser) localStorage.setItem(savedUserKey, JSON.stringify(mockUser));
       renderUser(user);
+      applyDashboardAccess(user);
       renderGuilds(Array.isArray(user.guilds) ? user.guilds : []);
       setupNavigation();
+      if (document.querySelector(".sidebar-link.active")?.hidden) document.querySelector(".sidebar-link[data-section]:not([hidden])")?.click();
       logoutButton.hidden = false;
       return;
     }
@@ -571,8 +652,10 @@ async function loadDashboard() {
     const { user } = await response.json();
     localStorage.setItem(savedUserKey, JSON.stringify(user));
     renderUser(user);
+    applyDashboardAccess(user);
     renderGuilds(Array.isArray(user.guilds) ? user.guilds : []);
     setupNavigation();
+    if (document.querySelector(".sidebar-link.active")?.hidden) document.querySelector(".sidebar-link[data-section]:not([hidden])")?.click();
     logoutButton.hidden = false;
   } catch {
     localStorage.removeItem(savedUserKey);

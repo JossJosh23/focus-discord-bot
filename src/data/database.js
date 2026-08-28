@@ -24,6 +24,12 @@ database.exec(`
     uptime_seconds INTEGER NOT NULL DEFAULT 0,
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
+  CREATE TABLE IF NOT EXISTS dashboard_users (
+    discord_id TEXT PRIMARY KEY,
+    display_name TEXT NOT NULL DEFAULT '',
+    panels TEXT NOT NULL DEFAULT '[]',
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
 `);
 
 const insertEvent = database.prepare(`
@@ -32,6 +38,7 @@ const insertEvent = database.prepare(`
 `);
 
 const EVENT_TYPES = new Set(["message", "moderation", "warn", "member_join", "member_leave"]);
+const DASHBOARD_PANELS = Object.freeze(["overview", "welcome"]);
 const DEFAULT_SETTINGS = Object.freeze({
   welcome: { enabled: true, channel: "general", message: "Bienvenido {user} a {server}!", format: "text" },
   moderation: { enabled: true, antiSpam: true, filterLinks: false, warnLimit: 3 },
@@ -233,4 +240,60 @@ function getBotStatus(botId = "focus") {
   };
 }
 
-module.exports = { recordEvent, getGuildStats, getGuildSettings, saveGuildSettings, getGuildActivity, recordBotHeartbeat, getBotStatus };
+function normalizeDashboardUser({ discordId, displayName = "", panels = [] }) {
+  const normalizedId = requiredString(String(discordId || ""), "discordId", 20);
+  if (!/^\d{17,20}$/.test(normalizedId)) throw new Error("discordId no válido");
+  if (!Array.isArray(panels)) throw new Error("panels no válido");
+
+  return {
+    discordId: normalizedId,
+    displayName: optionalString(displayName, "", 80),
+    panels: [...new Set(panels.filter((panel) => DASHBOARD_PANELS.includes(panel)))]
+  };
+}
+
+function getDashboardUser(discordId) {
+  const row = database.prepare("SELECT discord_id, display_name, panels, updated_at FROM dashboard_users WHERE discord_id = ?").get(String(discordId));
+  if (!row) return null;
+  try {
+    return normalizeDashboardUser({
+      discordId: row.discord_id,
+      displayName: row.display_name,
+      panels: JSON.parse(row.panels)
+    });
+  } catch {
+    return null;
+  }
+}
+
+function listDashboardUsers() {
+  return database.prepare("SELECT discord_id, display_name, panels, updated_at FROM dashboard_users ORDER BY updated_at DESC").all()
+    .map((row) => {
+      const user = getDashboardUser(row.discord_id);
+      return user && { ...user, updatedAt: row.updated_at };
+    })
+    .filter(Boolean);
+}
+
+function saveDashboardUser(user) {
+  const normalized = normalizeDashboardUser(user);
+  database.prepare(`
+    INSERT INTO dashboard_users (discord_id, display_name, panels, updated_at)
+    VALUES (?, ?, ?, datetime('now'))
+    ON CONFLICT(discord_id) DO UPDATE SET
+      display_name = excluded.display_name,
+      panels = excluded.panels,
+      updated_at = datetime('now')
+  `).run(normalized.discordId, normalized.displayName, JSON.stringify(normalized.panels));
+  return normalized;
+}
+
+function deleteDashboardUser(discordId) {
+  const normalizedId = requiredString(String(discordId || ""), "discordId", 20);
+  return database.prepare("DELETE FROM dashboard_users WHERE discord_id = ?").run(normalizedId).changes > 0;
+}
+
+module.exports = {
+  recordEvent, getGuildStats, getGuildSettings, saveGuildSettings, getGuildActivity, recordBotHeartbeat, getBotStatus,
+  DASHBOARD_PANELS, getDashboardUser, listDashboardUsers, saveDashboardUser, deleteDashboardUser
+};
