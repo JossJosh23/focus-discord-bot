@@ -129,14 +129,10 @@ async function enforceModeration(message, settings) {
 }
 
 async function recordModerationAction(guildId, action, moderatorId, targetId = null) {
-  const settings = await getGuildSettings(guildId);
-  if (!settings?.automation?.logs) return null;
   return recordGuildEvent(guildId, "moderation", { action, moderatorId, targetId });
 }
 
 async function recordWarn(guildId, moderatorId, targetId) {
-  const settings = await getGuildSettings(guildId);
-  if (!settings?.automation?.logs) return null;
   return recordGuildEvent(guildId, "warn", { moderatorId, targetId, active: true });
 }
 
@@ -163,9 +159,7 @@ function registerDashboardListeners(client) {
     try {
       const settings = await getGuildSettings(message.guildId);
       await enforceModeration(message, settings);
-      if (settings?.automation?.logs) {
-        await recordGuildEvent(message.guildId, "message");
-      }
+      await recordGuildEvent(message.guildId, "message");
     } catch (error) {
       console.error("No se pudo procesar el mensaje del servidor:", error);
     }
@@ -175,9 +169,7 @@ function registerDashboardListeners(client) {
     try {
       const settings = await getGuildSettings(member.guild.id);
       await Promise.all([assignDefaultRole(member, settings), sendWelcome(member, settings)]);
-      if (settings?.automation?.logs) {
-        await recordGuildEvent(member.guild.id, "member_join", { userId: member.id });
-      }
+      await recordGuildEvent(member.guild.id, "member_join", { userId: member.id });
     } catch (error) {
       console.error("No se pudo procesar la entrada de un miembro:", error);
     }
@@ -186,9 +178,7 @@ function registerDashboardListeners(client) {
   client.on("guildMemberRemove", async (member) => {
     try {
       const settings = await getGuildSettings(member.guild.id);
-      if (settings?.automation?.logs) {
-        await recordGuildEvent(member.guild.id, "member_leave", { userId: member.id });
-      }
+      await recordGuildEvent(member.guild.id, "member_leave", { userId: member.id });
     } catch (error) {
       console.error("No se pudo procesar la salida de un miembro:", error);
     }

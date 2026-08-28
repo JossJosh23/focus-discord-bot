@@ -438,7 +438,7 @@ function setStatsLoading(isLoading) {
 function renderGuildStats(data) {
   const guild = data.guild;
   const stats = data.stats;
-  if (statsSource) statsSource.textContent = stats.messages || stats.newMembers30d || stats.moderationActions || stats.warns ? "Datos del bot en vivo" : "Sin actividad registrada";
+  if (statsSource) statsSource.textContent = stats.messages || stats.newMembers30d || stats.moderationActions || stats.warns ? "Datos reales de Focus" : "Aún sin eventos registrados";
   serverMembers.textContent = Number(guild.memberCount || 0).toLocaleString();
   serverRoles.textContent = guild.roleCount ?? "--";
   serverAge.textContent = guild.createdAt ? formatGuildAge(guild.createdAt) : "--";
@@ -492,8 +492,14 @@ async function loadGuildStats(guildId) {
 }
 
 function formatGuildAge(createdAt) {
-  const years = Math.max(0, Math.floor((Date.now() - new Date(createdAt).getTime()) / 31557600000));
-  return years ? `${years} año${years === 1 ? "" : "s"}` : "Nueva";
+  const date = new Date(createdAt);
+  if (Number.isNaN(date.getTime())) return "--";
+  return new Intl.DateTimeFormat("es-EC", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC"
+  }).format(date).replaceAll(".", "");
 }
 
 function updateClock() {
@@ -558,14 +564,23 @@ function renderGuilds(guilds) {
     name.textContent = guild.name;
     option.append(name);
 
-    if (guild.owner) {
-      const ownerLabel = document.createElement("small");
-      ownerLabel.className = "guild-owner-badge";
-      ownerLabel.textContent = "Propietario";
-      option.append(ownerLabel);
+    const badges = document.createElement("span");
+    badges.className = "guild-badges";
+
+    const accessLabel = document.createElement("small");
+    accessLabel.className = guild.owner ? "guild-owner-badge" : "guild-admin-badge";
+    accessLabel.textContent = guild.owner ? "Propietario" : "Administrador";
+    badges.append(accessLabel);
+
+    if (!guild.botInstalled) {
+      const installLabel = document.createElement("small");
+      installLabel.className = "guild-invite-badge";
+      installLabel.textContent = "Sin Focus";
+      badges.append(installLabel);
+      option.classList.add("guild-option-missing-bot");
     }
 
-    if (!guild.botInstalled) { const inviteLabel = document.createElement("small"); inviteLabel.className = "guild-invite-badge"; inviteLabel.textContent = "Invitar Focus"; option.append(inviteLabel); }
+    option.append(badges);
     option.addEventListener("click", () => guild.botInstalled ? selectGuild(guild) : inviteBot(guild));
     guildsMenu.append(option);
 
@@ -577,7 +592,9 @@ function renderGuilds(guilds) {
     const cardName = document.createElement("h3");
     cardName.textContent = guild.name;
     const cardMeta = document.createElement("p");
-    cardMeta.textContent = `${Number(guild.memberCount || 0).toLocaleString()} miembros`;
+    const accessName = guild.owner ? "Propietario" : "Administrador";
+    const installationName = guild.botInstalled ? "Focus instalado" : "Focus no instalado";
+    cardMeta.textContent = `${Number(guild.memberCount || 0).toLocaleString()} miembros · ${accessName} · ${installationName}`;
     cardInfo.append(cardName, cardMeta);
     const openButton = document.createElement("button");
     openButton.type = "button";
@@ -590,8 +607,8 @@ function renderGuilds(guilds) {
   });
 
   const savedGuildId = localStorage.getItem(selectedGuildKey);
-  const selectedGuild = guilds.find((guild) => guild.id === savedGuildId && guild.botInstalled) || guilds.find((guild) => guild.botInstalled) || guilds[0];
-  selectGuild(selectedGuild);
+  const selectedGuild = guilds.find((guild) => guild.id === savedGuildId && guild.botInstalled) || guilds.find((guild) => guild.botInstalled);
+  if (selectedGuild) selectGuild(selectedGuild);
 }
 
 function hasAdministratorPermission(permissions) {
