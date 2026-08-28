@@ -43,6 +43,7 @@ async function loadSession() {
     renderUser(result.user);
   } catch {
     clearUser();
+    if (loginButton) loginButton.hidden = false;
   }
 }
 
