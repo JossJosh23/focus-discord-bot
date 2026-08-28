@@ -97,7 +97,7 @@ function applyDashboardAccess(user) {
 }
 
 function inviteBot(guild) {
-  const params = new URLSearchParams({ client_id: "1540939068693544992", scope: "bot applications.commands", guild_id: guild.id, disable_guild_select: "true" });
+  const params = new URLSearchParams({ client_id: "1540939068693544992", scope: "bot", permissions: "93184", guild_id: guild.id, disable_guild_select: "true" });
   window.location.assign(`https://discord.com/oauth2/authorize?${params}`);
 }
 
