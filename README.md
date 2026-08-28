@@ -48,7 +48,7 @@ SESSION_SECRET=una_clave_larga_y_aleatoria
 DISCORD_BOT_TOKEN=token_privado_del_bot
 EVENT_INGEST_TOKEN=token_privado_para_eventos
 FOCUS_OWNER_IDS=tu_id_de_discord
-DATABASE_PATH=soniabot.sqlite
+DATABASE_URL=postgresql://focus_app:tu_contrasena@host-interno:5432/focus
 NODE_ENV=production
 ```
 

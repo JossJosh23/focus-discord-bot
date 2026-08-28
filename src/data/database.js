@@ -1,42 +1,8 @@
-const Database = require("better-sqlite3");
+const { Pool } = require("pg");
 
-const database = new Database(process.env.DATABASE_PATH || "soniabot.sqlite");
-database.pragma("journal_mode = WAL");
-database.pragma("foreign_keys = ON");
-database.exec(`
-  CREATE TABLE IF NOT EXISTS guild_events (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    guild_id TEXT NOT NULL,
-    event_type TEXT NOT NULL CHECK(event_type IN ('message', 'moderation', 'warn', 'member_join', 'member_leave')),
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    metadata TEXT
-  );
-  CREATE INDEX IF NOT EXISTS idx_guild_events_guild_date
-    ON guild_events(guild_id, created_at);
-  CREATE TABLE IF NOT EXISTS guild_settings (
-    guild_id TEXT PRIMARY KEY,
-    settings TEXT NOT NULL DEFAULT '{}',
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-  );
-  CREATE TABLE IF NOT EXISTS bot_heartbeats (
-    bot_id TEXT PRIMARY KEY,
-    guild_count INTEGER NOT NULL DEFAULT 0,
-    uptime_seconds INTEGER NOT NULL DEFAULT 0,
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-  );
-  CREATE TABLE IF NOT EXISTS dashboard_users (
-    discord_id TEXT PRIMARY KEY,
-    display_name TEXT NOT NULL DEFAULT '',
-    panels TEXT NOT NULL DEFAULT '[]',
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-  );
-`);
+if (!process.env.DATABASE_URL) throw new Error("Falta DATABASE_URL para conectar PostgreSQL");
 
-const insertEvent = database.prepare(`
-  INSERT INTO guild_events (guild_id, event_type, metadata)
-  VALUES (@guildId, @eventType, @metadata)
-`);
-
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const EVENT_TYPES = new Set(["message", "moderation", "warn", "member_join", "member_leave"]);
 const DASHBOARD_PANELS = Object.freeze(["overview", "welcome"]);
 const DEFAULT_SETTINGS = Object.freeze({
@@ -47,253 +13,65 @@ const DEFAULT_SETTINGS = Object.freeze({
   profile: { description: "", invite: "" }
 });
 
-function isPlainObject(value) {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
-function requiredString(value, field, maxLength) {
-  if (typeof value !== "string" || !value.trim() || value.length > maxLength) {
-    throw new Error(`${field} no válido`);
-  }
-  return value.trim();
-}
-
-function optionalString(value, fallback, maxLength) {
-  return typeof value === "string" ? value.trim().slice(0, maxLength) : fallback;
-}
-
-function normalizeSettings(settings) {
-  if (!isPlainObject(settings)) throw new Error("Configuración no válida");
-
-  const welcome = isPlainObject(settings.welcome) ? settings.welcome : {};
-  const moderation = isPlainObject(settings.moderation) ? settings.moderation : {};
-  const roles = isPlainObject(settings.roles) ? settings.roles : {};
-  const automation = isPlainObject(settings.automation) ? settings.automation : {};
-  const profile = isPlainObject(settings.profile) ? settings.profile : {};
-  const warnLimit = Number(moderation.warnLimit);
-
-  return {
-    welcome: {
-      enabled: typeof welcome.enabled === "boolean" ? welcome.enabled : DEFAULT_SETTINGS.welcome.enabled,
-      channel: optionalString(welcome.channel, DEFAULT_SETTINGS.welcome.channel, 100),
-      message: optionalString(welcome.message, DEFAULT_SETTINGS.welcome.message, 1_700),
-      format: welcome.format === "embed" ? "embed" : DEFAULT_SETTINGS.welcome.format
-    },
-    moderation: {
-      enabled: typeof moderation.enabled === "boolean" ? moderation.enabled : DEFAULT_SETTINGS.moderation.enabled,
-      antiSpam: typeof moderation.antiSpam === "boolean" ? moderation.antiSpam : DEFAULT_SETTINGS.moderation.antiSpam,
-      filterLinks: typeof moderation.filterLinks === "boolean" ? moderation.filterLinks : DEFAULT_SETTINGS.moderation.filterLinks,
-      warnLimit: Number.isInteger(warnLimit) && warnLimit >= 1 && warnLimit <= 20 ? warnLimit : DEFAULT_SETTINGS.moderation.warnLimit
-    },
-    roles: {
-      enabled: typeof roles.enabled === "boolean" ? roles.enabled : DEFAULT_SETTINGS.roles.enabled,
-      defaultRole: optionalString(roles.defaultRole, DEFAULT_SETTINGS.roles.defaultRole, 100)
-    },
-    automation: {
-      logs: typeof automation.logs === "boolean" ? automation.logs : DEFAULT_SETTINGS.automation.logs,
-      joinMessage: typeof automation.joinMessage === "boolean" ? automation.joinMessage : DEFAULT_SETTINGS.automation.joinMessage
-    },
-    profile: {
-      description: optionalString(profile.description, DEFAULT_SETTINGS.profile.description, 500),
-      invite: optionalString(profile.invite, DEFAULT_SETTINGS.profile.invite, 200)
-    }
-  };
-}
-
-function recordEvent({ guildId, eventType, metadata = null, createdAt = null }) {
-  const normalizedGuildId = requiredString(guildId, "guildId", 32);
-  if (!EVENT_TYPES.has(eventType)) throw new Error("eventType no válido");
-
-  let serializedMetadata = null;
-  if (metadata !== null) {
-    if (!isPlainObject(metadata)) throw new Error("metadata no válida");
-    serializedMetadata = JSON.stringify(metadata);
-    if (serializedMetadata.length > 16_000) throw new Error("metadata excede el tamaño permitido");
-  }
-
-  if (createdAt) {
-    if (typeof createdAt !== "string" || Number.isNaN(Date.parse(createdAt))) {
-      throw new Error("createdAt no válido");
-    }
-    return database.prepare(`
-      INSERT INTO guild_events (guild_id, event_type, created_at, metadata)
-      VALUES (?, ?, ?, ?)
-    `).run(normalizedGuildId, eventType, new Date(createdAt).toISOString(), serializedMetadata);
-  }
-
-  return insertEvent.run({
-    guildId: normalizedGuildId,
-    eventType,
-    metadata: serializedMetadata
-  });
-}
-
-function getGuildStats(guildId) {
-  // CORRECCIÓN: SUM() con CASE WHEN para 'message' en lugar de COUNT(*)
-  const stats = database.prepare(`
-    SELECT
-      SUM(CASE WHEN event_type = 'message' THEN 1 ELSE 0 END) AS messages,
-      SUM(CASE WHEN event_type = 'moderation' THEN 1 ELSE 0 END) AS moderation_actions,
-      SUM(CASE WHEN event_type = 'warn' THEN 1 ELSE 0 END) AS warns,
-      SUM(CASE WHEN event_type = 'member_join' THEN 1 ELSE 0 END) AS total_joins,
-      SUM(CASE WHEN event_type = 'member_leave' THEN 1 ELSE 0 END) AS total_leaves,
-      SUM(CASE WHEN event_type = 'member_join' AND created_at >= datetime('now', '-30 days') THEN 1 ELSE 0 END) AS new_members_30d
-    FROM guild_events
-    WHERE guild_id = ?
-  `).get(guildId);
-
-  const activeWarns = database.prepare(`
-    SELECT COUNT(*) AS count
-    FROM guild_events
-    WHERE guild_id = ? AND event_type = 'warn'
-      AND json_extract(metadata, '$.active') IS NOT 0
-  `).get(guildId).count;
-
-  const periods = database.prepare(`
-    SELECT
-      SUM(CASE WHEN created_at >= datetime('now', '-30 days') THEN 1 ELSE 0 END) AS current_period,
-      SUM(CASE WHEN created_at >= datetime('now', '-60 days') AND created_at < datetime('now', '-30 days') THEN 1 ELSE 0 END) AS previous_period
-    FROM guild_events
-    WHERE guild_id = ? AND event_type = ?
+async function initializeDatabase() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS guild_events (
+      id BIGSERIAL PRIMARY KEY, guild_id TEXT NOT NULL,
+      event_type TEXT NOT NULL CHECK(event_type IN ('message','moderation','warn','member_join','member_leave')),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), metadata JSONB
+    );
+    CREATE INDEX IF NOT EXISTS idx_guild_events_guild_date ON guild_events (guild_id, created_at);
+    CREATE TABLE IF NOT EXISTS guild_settings (
+      guild_id TEXT PRIMARY KEY, settings JSONB NOT NULL DEFAULT '{}'::jsonb, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS bot_heartbeats (
+      bot_id TEXT PRIMARY KEY, guild_count INTEGER NOT NULL DEFAULT 0, uptime_seconds INTEGER NOT NULL DEFAULT 0, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS dashboard_users (
+      discord_id TEXT PRIMARY KEY, display_name TEXT NOT NULL DEFAULT '', panels JSONB NOT NULL DEFAULT '[]'::jsonb, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
   `);
+}
 
-  function percentageChange(eventType) {
-    const period = periods.get(guildId, eventType);
-    const current = Number(period.current_period || 0);
-    const previous = Number(period.previous_period || 0);
-    if (!previous) return null;
-    return Number((((current - previous) / previous) * 100).toFixed(1));
+function isObject(value) { return value !== null && typeof value === "object" && !Array.isArray(value); }
+function string(value, fallback, max) { return typeof value === "string" ? value.trim().slice(0, max) : fallback; }
+function guildId(value) { const id = String(value || "").trim(); if (!id || id.length > 32) throw new Error("guildId no válido"); return id; }
+function normalizeSettings(input) {
+  if (!isObject(input)) throw new Error("Configuración no válida");
+  const w = isObject(input.welcome) ? input.welcome : {}, m = isObject(input.moderation) ? input.moderation : {}, r = isObject(input.roles) ? input.roles : {}, a = isObject(input.automation) ? input.automation : {}, p = isObject(input.profile) ? input.profile : {};
+  const limit = Number(m.warnLimit);
+  return { welcome: { enabled: typeof w.enabled === "boolean" ? w.enabled : true, channel: string(w.channel, "general", 100), message: string(w.message, DEFAULT_SETTINGS.welcome.message, 1700), format: w.format === "embed" ? "embed" : "text" }, moderation: { enabled: typeof m.enabled === "boolean" ? m.enabled : true, antiSpam: typeof m.antiSpam === "boolean" ? m.antiSpam : true, filterLinks: Boolean(m.filterLinks), warnLimit: Number.isInteger(limit) && limit >= 1 && limit <= 20 ? limit : 3 }, roles: { enabled: Boolean(r.enabled), defaultRole: string(r.defaultRole, "Miembro", 100) }, automation: { logs: typeof a.logs === "boolean" ? a.logs : true, joinMessage: typeof a.joinMessage === "boolean" ? a.joinMessage : true }, profile: { description: string(p.description, "", 500), invite: string(p.invite, "", 200) } };
+}
+
+async function recordEvent({ guildId: id, eventType, metadata = null, createdAt = null }) {
+  if (!EVENT_TYPES.has(eventType)) throw new Error("eventType no válido");
+  if (metadata !== null && !isObject(metadata)) throw new Error("metadata no válida");
+  const values = [guildId(id), eventType, metadata];
+  const query = createdAt ? "INSERT INTO guild_events (guild_id,event_type,metadata,created_at) VALUES ($1,$2,$3,$4) RETURNING id" : "INSERT INTO guild_events (guild_id,event_type,metadata) VALUES ($1,$2,$3) RETURNING id";
+  if (createdAt) values.push(new Date(createdAt));
+  return (await pool.query(query, values)).rows[0];
+}
+
+async function getGuildStats(id) {
+  const { rows: [stats] } = await pool.query(`SELECT COUNT(*) FILTER (WHERE event_type='message') messages, COUNT(*) FILTER (WHERE event_type='moderation') moderation_actions, COUNT(*) FILTER (WHERE event_type='warn') warns, COUNT(*) FILTER (WHERE event_type='member_join') total_joins, COUNT(*) FILTER (WHERE event_type='member_leave') total_leaves, COUNT(*) FILTER (WHERE event_type='member_join' AND created_at >= NOW()-INTERVAL '30 days') new_members_30d FROM guild_events WHERE guild_id=$1`, [guildId(id)]);
+  const changes = {};
+  for (const [key, type] of Object.entries({ messages: "message", newMembers30d: "member_join", moderationActions: "moderation", warns: "warn" })) {
+    const { rows: [row] } = await pool.query(`SELECT COUNT(*) FILTER (WHERE created_at>=NOW()-INTERVAL '30 days') current, COUNT(*) FILTER (WHERE created_at>=NOW()-INTERVAL '60 days' AND created_at<NOW()-INTERVAL '30 days') previous FROM guild_events WHERE guild_id=$1 AND event_type=$2`, [guildId(id), type]);
+    const current = Number(row.current), previous = Number(row.previous); changes[key] = previous ? Number((((current - previous) / previous) * 100).toFixed(1)) : null;
   }
-
-  return {
-    messages: Number(stats.messages || 0),
-    newMembers30d: Number(stats.new_members_30d || 0),
-    moderationActions: Number(stats.moderation_actions || 0),
-    warns: Number(activeWarns || stats.warns || 0),
-    totalJoins: Number(stats.total_joins || 0),
-    totalLeaves: Number(stats.total_leaves || 0),
-    changes: {
-      messages: percentageChange("message"),
-      newMembers30d: percentageChange("member_join"),
-      moderationActions: percentageChange("moderation"),
-      warns: percentageChange("warn")
-    }
-  };
+  return { messages: Number(stats.messages), newMembers30d: Number(stats.new_members_30d), moderationActions: Number(stats.moderation_actions), warns: Number(stats.warns), totalJoins: Number(stats.total_joins), totalLeaves: Number(stats.total_leaves), changes };
 }
 
-function getGuildSettings(guildId) {
-  const row = database.prepare("SELECT settings FROM guild_settings WHERE guild_id = ?").get(guildId);
-  if (!row) return normalizeSettings({});
-  try {
-    return normalizeSettings(JSON.parse(row.settings));
-  } catch { return normalizeSettings({}); }
-}
+async function getGuildSettings(id) { const { rows: [row] } = await pool.query("SELECT settings FROM guild_settings WHERE guild_id=$1", [guildId(id)]); return normalizeSettings(row?.settings || {}); }
+async function saveGuildSettings(id, settings) { const normalized = normalizeSettings(settings), key = guildId(id); await pool.query("INSERT INTO guild_settings (guild_id,settings,updated_at) VALUES ($1,$2,NOW()) ON CONFLICT(guild_id) DO UPDATE SET settings=EXCLUDED.settings,updated_at=NOW()", [key, normalized]); return normalized; }
+async function getGuildActivity(id) { const { rows } = await pool.query("SELECT created_at::date::text date, COUNT(*) FILTER (WHERE event_type='message')::int messages, COUNT(*) FILTER (WHERE event_type='member_join')::int joins, COUNT(*) FILTER (WHERE event_type IN ('moderation','warn'))::int moderation FROM guild_events WHERE guild_id=$1 AND created_at>=NOW()-INTERVAL '7 days' GROUP BY created_at::date ORDER BY date", [guildId(id)]); return rows; }
+async function recordBotHeartbeat({ botId = "focus", guildCount = 0, uptimeSeconds = 0 }) { await pool.query("INSERT INTO bot_heartbeats (bot_id,guild_count,uptime_seconds,updated_at) VALUES ($1,$2,$3,NOW()) ON CONFLICT(bot_id) DO UPDATE SET guild_count=EXCLUDED.guild_count,uptime_seconds=EXCLUDED.uptime_seconds,updated_at=NOW()", [string(botId, "focus", 100), Math.max(0, Number(guildCount) || 0), Math.max(0, Number(uptimeSeconds) || 0)]); }
+async function getBotStatus(botId = "focus") { const { rows: [row] } = await pool.query("SELECT guild_count,uptime_seconds,updated_at,EXTRACT(EPOCH FROM (NOW()-updated_at)) seconds FROM bot_heartbeats WHERE bot_id=$1", [botId]); return row ? { online: Number(row.seconds) <= 90, uptime: Number(row.uptime_seconds), lastSync: row.updated_at, guildCount: Number(row.guild_count) } : { online: false, uptime: 0, lastSync: null, guildCount: 0 }; }
 
-function saveGuildSettings(guildId, settings) {
-  const normalizedGuildId = requiredString(guildId, "guildId", 32);
-  const normalizedSettings = normalizeSettings(settings);
-  database.prepare(`
-    INSERT INTO guild_settings (guild_id, settings, updated_at) VALUES (?, ?, datetime('now'))
-    ON CONFLICT(guild_id) DO UPDATE SET settings = excluded.settings, updated_at = datetime('now')
-  `).run(normalizedGuildId, JSON.stringify(normalizedSettings));
-  return normalizedSettings;
-}
+function normalizeUser({ discordId, displayName = "", panels = [] }) { const id = String(discordId || "").trim(); if (!/^\d{17,20}$/.test(id) || !Array.isArray(panels)) throw new Error("Usuario no válido"); return { discordId: id, displayName: string(displayName, "", 80), panels: [...new Set(panels.filter((panel) => DASHBOARD_PANELS.includes(panel)))] }; }
+async function getDashboardUser(id) { const { rows: [row] } = await pool.query("SELECT discord_id,display_name,panels FROM dashboard_users WHERE discord_id=$1", [String(id)]); return row ? normalizeUser({ discordId: row.discord_id, displayName: row.display_name, panels: row.panels }) : null; }
+async function listDashboardUsers() { const { rows } = await pool.query("SELECT discord_id,display_name,panels,updated_at FROM dashboard_users ORDER BY updated_at DESC"); return rows.map((row) => ({ ...normalizeUser({ discordId: row.discord_id, displayName: row.display_name, panels: row.panels }), updatedAt: row.updated_at })); }
+async function saveDashboardUser(user) { const n = normalizeUser(user); await pool.query("INSERT INTO dashboard_users (discord_id,display_name,panels,updated_at) VALUES ($1,$2,$3,NOW()) ON CONFLICT(discord_id) DO UPDATE SET display_name=EXCLUDED.display_name,panels=EXCLUDED.panels,updated_at=NOW()", [n.discordId, n.displayName, n.panels]); return n; }
+async function deleteDashboardUser(id) { return (await pool.query("DELETE FROM dashboard_users WHERE discord_id=$1", [String(id)])).rowCount > 0; }
 
-function getGuildActivity(guildId) {
-  return database.prepare(`
-    SELECT substr(created_at, 1, 10) AS date,
-      SUM(CASE WHEN event_type = 'message' THEN 1 ELSE 0 END) AS messages,
-      SUM(CASE WHEN event_type = 'member_join' THEN 1 ELSE 0 END) AS joins,
-      SUM(CASE WHEN event_type IN ('moderation', 'warn') THEN 1 ELSE 0 END) AS moderation
-    FROM guild_events WHERE guild_id = ? AND created_at >= datetime('now', '-7 days')
-    GROUP BY substr(created_at, 1, 10) ORDER BY date ASC
-  `).all(guildId);
-}
-
-function recordBotHeartbeat({ botId = "focus", guildCount = 0, uptimeSeconds = 0 }) {
-  const normalizedBotId = requiredString(String(botId), "botId", 100);
-  const normalizedGuildCount = Math.max(0, Math.floor(Number(guildCount) || 0));
-  const normalizedUptime = Math.max(0, Math.floor(Number(uptimeSeconds) || 0));
-  database.prepare(`
-    INSERT INTO bot_heartbeats (bot_id, guild_count, uptime_seconds, updated_at)
-    VALUES (?, ?, ?, datetime('now'))
-    ON CONFLICT(bot_id) DO UPDATE SET
-      guild_count = excluded.guild_count,
-      uptime_seconds = excluded.uptime_seconds,
-      updated_at = datetime('now')
-  `).run(normalizedBotId, normalizedGuildCount, normalizedUptime);
-}
-
-function getBotStatus(botId = "focus") {
-  const heartbeat = database.prepare(`
-    SELECT guild_count, uptime_seconds, updated_at,
-      CAST((julianday('now') - julianday(updated_at)) * 86400 AS INTEGER) AS seconds_since_heartbeat
-    FROM bot_heartbeats WHERE bot_id = ?
-  `).get(botId);
-
-  if (!heartbeat) return { online: false, uptime: 0, lastSync: null, guildCount: 0 };
-  return {
-    online: Number(heartbeat.seconds_since_heartbeat || 0) <= 90,
-    uptime: Number(heartbeat.uptime_seconds || 0),
-    lastSync: heartbeat.updated_at,
-    guildCount: Number(heartbeat.guild_count || 0)
-  };
-}
-
-function normalizeDashboardUser({ discordId, displayName = "", panels = [] }) {
-  const normalizedId = requiredString(String(discordId || ""), "discordId", 20);
-  if (!/^\d{17,20}$/.test(normalizedId)) throw new Error("discordId no válido");
-  if (!Array.isArray(panels)) throw new Error("panels no válido");
-
-  return {
-    discordId: normalizedId,
-    displayName: optionalString(displayName, "", 80),
-    panels: [...new Set(panels.filter((panel) => DASHBOARD_PANELS.includes(panel)))]
-  };
-}
-
-function getDashboardUser(discordId) {
-  const row = database.prepare("SELECT discord_id, display_name, panels, updated_at FROM dashboard_users WHERE discord_id = ?").get(String(discordId));
-  if (!row) return null;
-  try {
-    return normalizeDashboardUser({
-      discordId: row.discord_id,
-      displayName: row.display_name,
-      panels: JSON.parse(row.panels)
-    });
-  } catch {
-    return null;
-  }
-}
-
-function listDashboardUsers() {
-  return database.prepare("SELECT discord_id, display_name, panels, updated_at FROM dashboard_users ORDER BY updated_at DESC").all()
-    .map((row) => {
-      const user = getDashboardUser(row.discord_id);
-      return user && { ...user, updatedAt: row.updated_at };
-    })
-    .filter(Boolean);
-}
-
-function saveDashboardUser(user) {
-  const normalized = normalizeDashboardUser(user);
-  database.prepare(`
-    INSERT INTO dashboard_users (discord_id, display_name, panels, updated_at)
-    VALUES (?, ?, ?, datetime('now'))
-    ON CONFLICT(discord_id) DO UPDATE SET
-      display_name = excluded.display_name,
-      panels = excluded.panels,
-      updated_at = datetime('now')
-  `).run(normalized.discordId, normalized.displayName, JSON.stringify(normalized.panels));
-  return normalized;
-}
-
-function deleteDashboardUser(discordId) {
-  const normalizedId = requiredString(String(discordId || ""), "discordId", 20);
-  return database.prepare("DELETE FROM dashboard_users WHERE discord_id = ?").run(normalizedId).changes > 0;
-}
-
-module.exports = {
-  recordEvent, getGuildStats, getGuildSettings, saveGuildSettings, getGuildActivity, recordBotHeartbeat, getBotStatus,
-  DASHBOARD_PANELS, getDashboardUser, listDashboardUsers, saveDashboardUser, deleteDashboardUser
-};
+module.exports = { initializeDatabase, recordEvent, getGuildStats, getGuildSettings, saveGuildSettings, getGuildActivity, recordBotHeartbeat, getBotStatus, DASHBOARD_PANELS, getDashboardUser, listDashboardUsers, saveDashboardUser, deleteDashboardUser };
