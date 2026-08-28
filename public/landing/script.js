@@ -4,7 +4,7 @@ const BOT_ID = "1540939068693544992";
 const STATUS_URL = "";
 
 const INVITE_URL =
-`https://discord.com/oauth2/authorize?client_id=1540939068693544992&permissions=8&response_type=code&redirect_uri=https%3A%2F%2Ffocusbot.playorch.tech%2Fauth%2Fcallback&integration_type=0&scope=bot+applications.commands.permissions.update`;
+`https://discord.com/oauth2/authorize?client_id=${BOT_ID}&permissions=1099780156438&scope=bot%20applications.commands`;
 
 
 /* BOT INVITE */

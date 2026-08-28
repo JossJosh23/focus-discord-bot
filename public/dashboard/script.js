@@ -98,8 +98,14 @@ function applyDashboardAccess(user) {
 }
 
 function inviteBot(guild) {
-  const params = new URLSearchParams({ client_id: "1540939068693544992", scope: "bot", permissions: "93184", guild_id: guild.id, disable_guild_select: "true" });
-  window.location.assign(`https://discord.com/oauth2/authorize?client_id=1540939068693544992&permissions=8&response_type=code&redirect_uri=https%3A%2F%2Ffocusbot.playorch.tech%2Fauth%2Fcallback&integration_type=0&scope=bot+applications.commands.permissions.update`);
+  const params = new URLSearchParams({
+    client_id: "1540939068693544992",
+    scope: "bot applications.commands",
+    permissions: "1099780156438",
+    guild_id: guild.id,
+    disable_guild_select: "true"
+  });
+  window.location.assign(`https://discord.com/oauth2/authorize?${params}`);
 }
 
 function renderDevelopers(users = [], panels = ["overview", "welcome"]) {
