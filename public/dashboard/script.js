@@ -239,7 +239,7 @@ async function loadGuildConfiguration(guildId) {
   }
 }
 
-async function saveGuildConfiguration() {
+async function saveGuildConfiguration(section = "") {
   if (!activeGuildId || !guildConfiguration) return;
   if (isLocalEnvironment) {
     localStorage.setItem(`focusbot.config.${activeGuildId}`, JSON.stringify(guildConfiguration));
@@ -247,12 +247,12 @@ async function saveGuildConfiguration() {
     return;
   }
   const response = await fetch(`/api/guilds/${encodeURIComponent(activeGuildId)}/settings`, {
-    method: "PUT", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(guildConfiguration)
+    method: "PUT", credentials: "same-origin", headers: { "Content-Type": "application/json", "x-settings-section": section }, body: JSON.stringify(guildConfiguration)
   });
-  if (!response.ok) throw new Error("No se pudieron guardar los cambios");
   const result = await response.json();
+  if (!response.ok) throw new Error(result.error || "No se pudieron guardar los cambios");
   guildConfiguration = result.settings;
-  showToast(result.nicknameSynced === false ? "Configuración guardada; Discord no pudo actualizar el apodo" : "Cambios guardados");
+  showToast(result.profileSynced === false ? (result.profileError || "Discord no pudo actualizar el perfil") : "Cambios guardados y sincronizados");
 }
 
 function viewContent(view, content) {
@@ -280,6 +280,9 @@ function renderManagementViews() {
 function bindCustomizerPreview() {
   const form = document.querySelector('[data-view="customizer"] [data-settings-form="customizer"]');
   if (!form) return;
+  form.elements.avatarUrl.placeholder = "https://media.discordapp.net/attachments/.../avatar.png";
+  form.elements.bannerUrl.placeholder = "https://media.discordapp.net/attachments/.../banner.png";
+  form.querySelector(".customizer-note").textContent = "Apodo, avatar y banner se aplican al perfil real de Focus únicamente en este servidor. Usa enlaces de imágenes subidas a Discord (máximo 8 MB).";
   const preview = form.querySelector(".customizer-preview");
   const banner = form.querySelector(".customizer-preview-banner");
   const profile = form.querySelector(".customizer-preview-profile");
@@ -388,7 +391,7 @@ function bindWelcomePreview() {
     testButton.disabled = true;
     testButton.textContent = "Enviando prueba...";
     try {
-      await saveGuildConfiguration();
+      await saveGuildConfiguration("welcome");
       const response = await fetch(`/api/guilds/${encodeURIComponent(activeGuildId)}/welcome/test`, {
         method: "POST",
         credentials: "same-origin"
@@ -423,13 +426,13 @@ function bindSettingsForms() {
       const key = form.dataset.settingsForm;
       if (key === "community") {
         applyCommunitySettings(form);
-        try { await saveGuildConfiguration(); renderManagementViews(); } catch { showToast("No se pudieron guardar los cambios", true); }
+        try { await saveGuildConfiguration("welcome"); renderManagementViews(); } catch { showToast("No se pudieron guardar los cambios", true); }
         return;
       }
       const next = {};
       form.querySelectorAll("input, textarea").forEach((input) => { next[input.name] = input.type === "checkbox" ? input.checked : input.type === "number" ? Number(input.value) : input.value.trim(); });
       guildConfiguration[key] = { ...guildConfiguration[key], ...next };
-      try { await saveGuildConfiguration(); } catch { showToast("No se pudieron guardar los cambios", true); }
+      try { await saveGuildConfiguration(key); } catch (error) { showToast(error.message || "No se pudieron guardar los cambios", true); }
     });
   });
 }

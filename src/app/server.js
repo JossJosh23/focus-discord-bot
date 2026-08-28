@@ -294,22 +294,66 @@ app.get("/api/guilds/:guildId/settings", requireDashboardAnyPanel(["customizer",
   }
 });
 
+async function discordImageDataUri(imageUrl) {
+  if (!imageUrl) return null;
+  const url = new URL(imageUrl);
+  const allowedHosts = new Set(["cdn.discordapp.com", "media.discordapp.net"]);
+  if (url.protocol !== "https:" || !allowedHosts.has(url.hostname)) {
+    throw new Error("Usa una URL de imagen alojada en Discord CDN");
+  }
+  const response = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+  if (!response.ok) throw new Error("Discord no pudo descargar una de las imágenes");
+  const mimeType = String(response.headers.get("content-type") || "").split(";")[0].toLowerCase();
+  if (!["image/png", "image/jpeg", "image/webp", "image/gif"].includes(mimeType)) {
+    throw new Error("La imagen debe ser PNG, JPG, WEBP o GIF");
+  }
+  const contentLength = Number(response.headers.get("content-length") || 0);
+  if (contentLength > 8 * 1024 * 1024) throw new Error("La imagen supera el límite de 8 MB");
+  const buffer = Buffer.from(await response.arrayBuffer());
+  if (buffer.length > 8 * 1024 * 1024) throw new Error("La imagen supera el límite de 8 MB");
+  return `data:${mimeType};base64,${buffer.toString("base64")}`;
+}
+
 app.put("/api/guilds/:guildId/settings", requireDashboardAnyPanel(["customizer", "welcome"]), requireManagedGuild, async (req, res) => {
   if (!req.body || typeof req.body !== "object" || Array.isArray(req.body)) {
     return res.status(400).json({ error: "Configuración no válida" });
   }
-  const settings = await saveGuildSettings(req.params.guildId, req.body);
-  let nicknameSynced = false;
-  if (process.env.DISCORD_BOT_TOKEN) {
-    const response = await fetch(`https://discord.com/api/v10/guilds/${req.params.guildId}/members/@me`, {
-      method: "PATCH",
-      headers: { Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ nick: settings.customizer.nickname || null }),
-      signal: AbortSignal.timeout(10_000)
-    });
-    nicknameSynced = response.ok;
+  let previous = null;
+  try {
+    previous = await getGuildSettings(req.params.guildId);
+    const settings = await saveGuildSettings(req.params.guildId, req.body);
+    const forceProfileSync = req.get("x-settings-section") === "customizer";
+    const profileChanged = forceProfileSync || ["nickname", "avatarUrl", "bannerUrl"]
+      .some((key) => previous.customizer[key] !== settings.customizer[key]);
+    let profileSynced = !profileChanged;
+    let profileError = null;
+
+    if (profileChanged && process.env.DISCORD_BOT_TOKEN) {
+      const body = {};
+      if (forceProfileSync || previous.customizer.nickname !== settings.customizer.nickname) body.nick = settings.customizer.nickname || null;
+      if (forceProfileSync || previous.customizer.avatarUrl !== settings.customizer.avatarUrl) body.avatar = await discordImageDataUri(settings.customizer.avatarUrl);
+      if (forceProfileSync || previous.customizer.bannerUrl !== settings.customizer.bannerUrl) body.banner = await discordImageDataUri(settings.customizer.bannerUrl);
+      const response = await fetch(`https://discord.com/api/v10/guilds/${req.params.guildId}/members/@me`, {
+        method: "PATCH",
+        headers: { Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}`, "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(15_000)
+      });
+      profileSynced = response.ok;
+      if (!response.ok) {
+        const discordError = await response.json().catch(() => ({}));
+        profileError = discordError.message || `Discord respondió ${response.status}`;
+        throw new Error(profileError);
+      }
+    } else if (profileChanged) {
+      throw new Error("Falta DISCORD_BOT_TOKEN en la web");
+    }
+
+    return res.json({ settings, profileSynced, profileError });
+  } catch (error) {
+    if (previous) await saveGuildSettings(req.params.guildId, previous).catch(console.error);
+    return res.status(400).json({ error: error.message || "No se pudo actualizar el perfil del servidor" });
   }
-  res.json({ settings, nicknameSynced });
 });
 
 app.get("/api/guilds/:guildId/activity", requireDashboardPanel("overview"), requireManagedGuild, async (req, res) => {
