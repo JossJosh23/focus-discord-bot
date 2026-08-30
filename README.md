@@ -38,7 +38,10 @@ Abre `http://localhost:3000`.
 
 ## Despliegue
 
-La aplicacion web se inicia con `node src/server.js`. Configura estas variables en el proveedor de hosting:
+La aplicacion desplegada se inicia con `npm start`, que mantiene activos tanto
+el servidor web como el bot de Discord dentro del proceso supervisado por el
+proveedor. Para iniciar solamente la web en local, usa `npm run start:web`.
+Configura estas variables en el proveedor de hosting:
 
 ```env
 CLIENT_ID=1540939068693544992

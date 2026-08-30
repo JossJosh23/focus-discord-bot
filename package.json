@@ -3,14 +3,19 @@
   "version": "1.0.0",
   "private": true,
   "description": "Web de Focus con autenticacion OAuth2 de Discord",
-  "main": "src/server.js",
+  "main": "src/start.js",
   "scripts": {
-    "start": "node src/server.js"
+    "start": "node src/start.js",
+    "start:web": "node src/server.js"
   },
   "engines": {
     "node": ">=18"
   },
   "dependencies": {
+    "@discordjs/rest": "^2.6.3",
+    "axios": "^1.19.0",
+    "discord-api-types": "^0.38.53",
+    "discord.js": "^14.27.0",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "express-session": "^1.18.1",

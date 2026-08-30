@@ -10,10 +10,11 @@ const {
 } = require('discord.js');
 const { registerDashboardListeners, recordModerationAction, recordWarn, recordCommand } = require('../services/dashboard-service');
 
-const { DISCORD_TOKEN, CLIENT_ID } = process.env;
+const DISCORD_TOKEN = process.env.DISCORD_TOKEN || process.env.DISCORD_BOT_TOKEN;
+const { CLIENT_ID } = process.env;
 
 if (!DISCORD_TOKEN || !CLIENT_ID) {
-  console.error('Faltan DISCORD_TOKEN o CLIENT_ID en el archivo .env');
+  console.error('Faltan DISCORD_TOKEN (o DISCORD_BOT_TOKEN) o CLIENT_ID en el entorno');
   process.exit(1);
 }
 
